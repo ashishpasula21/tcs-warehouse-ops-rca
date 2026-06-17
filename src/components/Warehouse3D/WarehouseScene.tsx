@@ -138,7 +138,6 @@ function routeForRack(rackX: number): EquipmentRoute {
 
 // ── Staging Stack — visible pallet stack at forklift pickup spots ──────────────
 // Stacks appear when the forklift is empty (new load assembled), vanish when picked.
-const _STACK_COLORS = ['#c8924a', '#b87c38', '#d4a462'];
 
 
 // Each dock slot is always mounted — position/visibility driven by useFrame
