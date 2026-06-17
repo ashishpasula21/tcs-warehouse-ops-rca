@@ -140,45 +140,6 @@ function routeForRack(rackX: number): EquipmentRoute {
 // Stacks appear when the forklift is empty (new load assembled), vanish when picked.
 const _STACK_COLORS = ['#c8924a', '#b87c38', '#d4a462'];
 
-function StagingStack({ x, z, watchRoute, pallets = 2 }: {
-  x: number; z: number; watchRoute: EquipmentRoute; pallets?: number;
-}) {
-  const ref   = useRef<THREE.Group>(null);
-  const scale = useRef(1);
-  const vel   = useRef(0);
-
-  useFrame((_, delta) => {
-    if (!ref.current) return;
-    const { currentTime } = useSimulationStore.getState();
-    const st = getEquipmentState(watchRoute, currentTime);
-    const target = st.isLoaded ? 0 : 1;
-    const dt = Math.min(delta, 0.05);
-    // Spring: slightly underdamped so the stack bounces gently when placed
-    const force = 18 * (target - scale.current) - 7 * vel.current;
-    vel.current  += force * dt;
-    scale.current += vel.current * dt;
-    scale.current = Math.max(0, Math.min(1.25, scale.current));
-    ref.current.visible = scale.current > 0.02;
-    ref.current.scale.setScalar(scale.current);
-  });
-
-  return (
-    <group ref={ref} position={[x, 0, z]}>
-      {/* Wooden pallet base */}
-      <mesh position={[0, 0.1, 0]}>
-        <boxGeometry args={[3.2, 0.2, 2.8]} />
-        <meshStandardMaterial color="#8b6914" roughness={0.95} />
-      </mesh>
-      {/* Stacked cargo boxes */}
-      {Array.from({ length: pallets }, (_, i) => (
-        <mesh key={i} position={[0, 0.62 + i * 1.05, 0]}>
-          <boxGeometry args={[2.85 - i * 0.08, 0.92, 2.5 - i * 0.08]} />
-          <meshStandardMaterial color={_STACK_COLORS[i % _STACK_COLORS.length]} roughness={0.85} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
 
 // Each dock slot is always mounted — position/visibility driven by useFrame
 function TruckSlot({ dockIdx, southWall, x }: { dockIdx: number; southWall: boolean; x: number }) {

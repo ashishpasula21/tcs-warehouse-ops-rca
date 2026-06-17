@@ -346,26 +346,6 @@ function FloorJoints() {
 }
 
 // ── Structural Columns ────────────────────────────────────────────────────────
-function StructuralColumns() {
-  const cols = [
-    [-64, -28], [-64, 8], [-64, 28],
-    [-45, -28], [-45,  8], [-45, 28],
-    [0,   -28], [0,   28],
-    [45,  -28], [45,   8], [45,  28],
-    [64,  -28], [64,   8], [64,  28],
-  ];
-  return (
-    <>
-      {cols.map(([cx, cz], i) => (
-        <mesh key={i} position={[cx, WALL_H / 2, cz]}>
-          <boxGeometry args={[0.7, WALL_H, 0.7]} />
-          <meshStandardMaterial color="#bfbbaf" roughness={0.8} metalness={0.05} />
-        </mesh>
-      ))}
-    </>
-  );
-}
-
 // ── Walls ─────────────────────────────────────────────────────────────────────
 function Walls() {
   const hw = 74;
