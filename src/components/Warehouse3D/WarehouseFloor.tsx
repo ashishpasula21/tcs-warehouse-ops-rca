@@ -99,13 +99,13 @@ function ZoneOverlays() {
   return (
     <group>
       {/* ── Colored zone panels — rack storage zone z=-22 to +8 ─────── */}
-      <ZonePanel cx={0}       cz={-30.5} width={152}  depth={17}  color="#3b82f6" opacity={0.12} />
-      <ZonePanel cx={-60}     cz={-7}    width={28}   depth={30}  color="#f97316" opacity={0.14} />
-      <ZonePanel cx={-32.5}   cz={-7}    width={27}   depth={30}  color="#fb923c" opacity={0.11} />
-      <ZonePanel cx={-2.5}    cz={-7}    width={33}   depth={30}  color="#22c55e" opacity={0.11} />
-      <ZonePanel cx={+26.25}  cz={-7}    width={24.5} depth={30}  color="#a855f7" opacity={0.12} />
-      <ZonePanel cx={+56.25}  cz={-7}    width={35.5} depth={30}  color="#06b6d4" opacity={0.13} />
-      <ZonePanel cx={0}       cz={23.5}  width={152}  depth={31}  color="#eab308" opacity={0.11} />
+      <ZonePanel cx={0}       cz={-30.5} width={152}  depth={17}  color="#1d4ed8" opacity={0.32} />
+      <ZonePanel cx={-60}     cz={-7}    width={28}   depth={30}  color="#ea580c" opacity={0.32} />
+      <ZonePanel cx={-32.5}   cz={-7}    width={27}   depth={30}  color="#d97706" opacity={0.32} />
+      <ZonePanel cx={-2.5}    cz={-7}    width={33}   depth={30}  color="#16a34a" opacity={0.32} />
+      <ZonePanel cx={+26.25}  cz={-7}    width={24.5} depth={30}  color="#7c3aed" opacity={0.32} />
+      <ZonePanel cx={+56.25}  cz={-7}    width={35.5} depth={30}  color="#0891b2" opacity={0.32} />
+      <ZonePanel cx={0}       cz={23.5}  width={152}  depth={31}  color="#ca8a04" opacity={0.32} />
 
       {/* ── Zone boundary lines ───────────────────────────────────────── */}
       <ZoneBorder x1={-74}  z1={-22} x2={74}   z2={-22} />
@@ -197,6 +197,180 @@ function DockBayMarkings() {
   );
 }
 
+// Static pallet stacks in receiving/shipping staging areas
+function StagingPallets() {
+  // Receiving area staging spots near each dock (z ~ -30)
+  const recv: [number, number][] = [
+    [-58, -30], [-55, -30], [-52, -30],
+    [-19, -30], [-16, -30], [-13, -30],
+    [4,   -30], [7,   -30], [10,  -30],
+  ];
+  // Shipping area staging spots near each dock (z ~ +30)
+  const ship: [number, number][] = [
+    [-34, 30], [-31, 30], [-28, 30],
+    [-9,  30], [-6,  30], [-3,  30],
+    [45,  30], [48,  30], [51,  30],
+  ];
+  const all = [...recv, ...ship];
+  return (
+    <group>
+      {all.map(([px, pz], i) => {
+        const col = BOX_COLORS[i % BOX_COLORS.length];
+        const stacked = i % 3 === 0; // every 3rd pallet has 2 boxes
+        return (
+          <group key={i} position={[px, 0, pz]}>
+            {/* Wood pallet base */}
+            <mesh position={[0, 0.09, 0]}>
+              <boxGeometry args={[1.15, 0.18, 1.0]} />
+              <meshStandardMaterial color="#7a5c1a" roughness={0.96} />
+            </mesh>
+            {/* First box layer */}
+            <mesh position={[0, 0.65, 0]}>
+              <boxGeometry args={[0.98, 0.88, 0.85]} />
+              <meshStandardMaterial color={col} roughness={0.88} />
+            </mesh>
+            {stacked && (
+              <mesh position={[0, 1.42, 0]}>
+                <boxGeometry args={[0.82, 0.72, 0.70]} />
+                <meshStandardMaterial color={BOX_COLORS[(i + 2) % BOX_COLORS.length]} roughness={0.88} />
+              </mesh>
+            )}
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+// Forklift battery charging stations (where forklifts park when idle)
+function ChargingStations() {
+  // Near receiving dock parking spots and shipping dock parking spots
+  const positions: [number, number][] = [
+    [-62, -24],  // Zone A recv area
+    [3,   -24],  // Zone C recv area
+    [-35,  24],  // Shipping west
+    [52,   24],  // Shipping east
+  ];
+  return (
+    <group>
+      {positions.map(([px, pz], i) => (
+        <group key={i} position={[px, 0, pz]}>
+          {/* Cabinet body */}
+          <mesh position={[0, 1.3, 0]}>
+            <boxGeometry args={[1.5, 2.6, 0.55]} />
+            <meshStandardMaterial color="#374151" roughness={0.65} metalness={0.4} />
+          </mesh>
+          {/* Yellow stripe */}
+          <mesh position={[0, 0.72, 0.285]}>
+            <boxGeometry args={[1.5, 0.18, 0.02]} />
+            <meshStandardMaterial color={LINE_COLOR} roughness={0.5} />
+          </mesh>
+          {/* Status LED */}
+          <mesh position={[0, 2.2, 0.29]}>
+            <boxGeometry args={[0.28, 0.14, 0.02]} />
+            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.2} />
+          </mesh>
+          {/* Charging cable on floor */}
+          <mesh position={[0.5, 0.04, 0.6]} rotation={[0, 0.4, 0]}>
+            <cylinderGeometry args={[0.04, 0.04, 1.4, 6]} />
+            <meshStandardMaterial color="#1f2937" roughness={0.9} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// Stretch-wrap stations near shipping area
+function WrapStations() {
+  const positions: [number, number][] = [[-20, 20], [20, 20]];
+  return (
+    <group>
+      {positions.map(([px, pz], i) => (
+        <group key={i} position={[px, 0, pz]}>
+          {/* Turntable base */}
+          <mesh position={[0, 0.12, 0]}>
+            <cylinderGeometry args={[0.85, 0.85, 0.24, 16]} />
+            <meshStandardMaterial color="#6b7280" roughness={0.7} metalness={0.5} />
+          </mesh>
+          {/* Pallet on turntable */}
+          <mesh position={[0, 0.32, 0]}>
+            <boxGeometry args={[1.1, 0.15, 1.0]} />
+            <meshStandardMaterial color="#7a5c1a" roughness={0.96} />
+          </mesh>
+          {/* Wrapped load */}
+          <mesh position={[0, 1.05, 0]}>
+            <cylinderGeometry args={[0.52, 0.52, 1.3, 12]} />
+            <meshStandardMaterial color="#e5e7eb" roughness={0.5} transparent opacity={0.7} />
+          </mesh>
+          {/* Mast */}
+          <mesh position={[1.0, 1.2, 0]}>
+            <cylinderGeometry args={[0.06, 0.06, 2.4, 8]} />
+            <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.3} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// Safety/first-aid stations on walls
+function SafetyStations() {
+  const positions: [number, number, number][] = [
+    [-70, 0, -10], [70, 0, 10], [-70, 0, 15], [70, 0, -15],
+  ];
+  return (
+    <group>
+      {positions.map(([px, py, pz], i) => (
+        <group key={i} position={[px, 0, pz]}>
+          {/* Red cabinet */}
+          <mesh position={[0, 1.0, 0]}>
+            <boxGeometry args={[0.22, 0.8, 0.55]} />
+            <meshStandardMaterial color="#dc2626" roughness={0.6} />
+          </mesh>
+          {/* White cross */}
+          <mesh position={[0.12, 1.0, 0]}>
+            <boxGeometry args={[0.02, 0.35, 0.08]} />
+            <meshStandardMaterial color="white" roughness={0.5} />
+          </mesh>
+          <mesh position={[0.12, 1.0, 0]}>
+            <boxGeometry args={[0.02, 0.08, 0.35]} />
+            <meshStandardMaterial color="white" roughness={0.5} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// Supervisor / control booth in the northwest corner
+function ControlBooth() {
+  return (
+    <group position={[-68, 0, 30]}>
+      {/* Walls */}
+      <mesh position={[0, 1.8, 0]}>
+        <boxGeometry args={[6, 3.6, 5]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.85} />
+      </mesh>
+      {/* Glass window front */}
+      <mesh position={[3.05, 2.1, 0]}>
+        <boxGeometry args={[0.08, 2.0, 3.5]} />
+        <meshStandardMaterial color="#bfdbfe" roughness={0.1} metalness={0.4} transparent opacity={0.55} />
+      </mesh>
+      {/* Roof */}
+      <mesh position={[0, 3.7, 0]}>
+        <boxGeometry args={[6.4, 0.2, 5.4]} />
+        <meshStandardMaterial color="#9ca3af" roughness={0.9} />
+      </mesh>
+      {/* Door */}
+      <mesh position={[3.05, 1.0, 1.6]}>
+        <boxGeometry args={[0.08, 2.0, 0.9]} />
+        <meshStandardMaterial color="#d97706" roughness={0.7} />
+      </mesh>
+    </group>
+  );
+}
+
 // ── Public component ─────────────────────────────────────────────────────────
 export function WarehouseFloor() {
   return (
@@ -238,6 +412,12 @@ export function WarehouseFloor() {
       <DockBayMarkings />
 
       {/* Trucks rendered by TruckSystem in WarehouseScene */}
+
+      <StagingPallets />
+      <ChargingStations />
+      <WrapStations />
+      <SafetyStations />
+      <ControlBooth />
     </group>
   );
 }
