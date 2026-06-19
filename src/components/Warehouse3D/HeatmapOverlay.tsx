@@ -115,7 +115,8 @@ export function HeatmapOverlay() {
   return (
     <mesh renderOrder={4} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
       <planeGeometry args={[WH_W, WH_D]} />
-      <meshBasicMaterial map={texture} transparent depthWrite={false} />
+      <meshBasicMaterial map={texture} transparent depthWrite={false}
+        polygonOffset polygonOffsetFactor={-5} polygonOffsetUnits={-5} />
     </mesh>
   );
 }

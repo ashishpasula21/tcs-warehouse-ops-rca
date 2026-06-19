@@ -68,7 +68,8 @@ function ZonePanel({ cx, cz, width, depth, color, opacity }: ZonePanelProps) {
     // renderOrder=1 keeps zone panels above the base floor without z-fighting
     <mesh renderOrder={1} rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.01, cz]}>
       <planeGeometry args={[width, depth]} />
-      <meshStandardMaterial color={color} transparent opacity={opacity} depthWrite={false} roughness={1} metalness={0} />
+      <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false}
+        polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
     </mesh>
   );
 }
@@ -85,7 +86,8 @@ function ZoneBorder({ x1, z1, x2, z2 }: { x1: number; z1: number; x2: number; z2
   return (
     <mesh renderOrder={3} rotation={rot} position={[cx, 0.03, cz]}>
       <planeGeometry args={[len, 0.28]} />
-      <meshStandardMaterial color="#ffffff" transparent opacity={0.35} depthWrite={false} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={0.35} depthWrite={false}
+        polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
     </mesh>
   );
 }
@@ -100,7 +102,7 @@ function ZoneOverlays() {
     <group>
       {/* ── Colored zone panels — rack storage zone z=-22 to +8 ─────── */}
       <ZonePanel cx={0}       cz={-30.5} width={152}  depth={17}  color="#1d4ed8" opacity={0.32} />
-      <ZonePanel cx={-60}     cz={-7}    width={28}   depth={30}  color="#ea580c" opacity={0.32} />
+      <ZonePanel cx={-60}     cz={-7}    width={28}   depth={30}  color="#dc2626" opacity={0.32} />
       <ZonePanel cx={-32.5}   cz={-7}    width={27}   depth={30}  color="#d97706" opacity={0.32} />
       <ZonePanel cx={-2.5}    cz={-7}    width={33}   depth={30}  color="#16a34a" opacity={0.32} />
       <ZonePanel cx={+26.25}  cz={-7}    width={24.5} depth={30}  color="#7c3aed" opacity={0.32} />
@@ -120,20 +122,20 @@ function ZoneOverlays() {
       <Text position={[0,   0.05, -31.5]} rotation={[-Math.PI/2,0,0]} fontSize={3.6} color="#1d4ed8" anchorX="center" anchorY="middle" renderOrder={5}>RECEIVING</Text>
       <Text position={[0,   0.05, -28.2]} rotation={[-Math.PI/2,0,0]} fontSize={1.8} color="#3b82f6" anchorX="center" anchorY="middle" renderOrder={5}>Inbound Pallets</Text>
 
-      <Text position={[-54, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#9a3412" anchorX="center" anchorY="middle" renderOrder={5}>ZONE A</Text>
-      <Text position={[-54, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#c2410c" anchorX="center" anchorY="middle" renderOrder={5}>Far West</Text>
+      <Text position={[-60, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#991b1b" anchorX="center" anchorY="middle" renderOrder={5}>ZONE A</Text>
+      <Text position={[-60, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#dc2626" anchorX="center" anchorY="middle" renderOrder={5}>Far West</Text>
 
-      <Text position={[-38, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#92400e" anchorX="center" anchorY="middle" renderOrder={5}>ZONE B</Text>
-      <Text position={[-38, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#b45309" anchorX="center" anchorY="middle" renderOrder={5}>West Storage</Text>
+      <Text position={[-32, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#92400e" anchorX="center" anchorY="middle" renderOrder={5}>ZONE B</Text>
+      <Text position={[-32, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#d97706" anchorX="center" anchorY="middle" renderOrder={5}>West Storage</Text>
 
-      <Text position={[0,   0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#14532d" anchorX="center" anchorY="middle" renderOrder={5}>ZONE C</Text>
-      <Text position={[0,   0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#15803d" anchorX="center" anchorY="middle" renderOrder={5}>Center Storage</Text>
+      <Text position={[-2,  0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#14532d" anchorX="center" anchorY="middle" renderOrder={5}>ZONE C</Text>
+      <Text position={[-2,  0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#16a34a" anchorX="center" anchorY="middle" renderOrder={5}>Center Storage</Text>
 
-      <Text position={[+28, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#581c87" anchorX="center" anchorY="middle" renderOrder={5}>ZONE D</Text>
-      <Text position={[+28, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#7e22ce" anchorX="center" anchorY="middle" renderOrder={5}>East Storage</Text>
+      <Text position={[+26, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#4c1d95" anchorX="center" anchorY="middle" renderOrder={5}>ZONE D</Text>
+      <Text position={[+26, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#7c3aed" anchorX="center" anchorY="middle" renderOrder={5}>East Storage</Text>
 
-      <Text position={[+49, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#155e75" anchorX="center" anchorY="middle" renderOrder={5}>ZONE E</Text>
-      <Text position={[+49, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#0e7490" anchorX="center" anchorY="middle" renderOrder={5}>Far East</Text>
+      <Text position={[+56, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#155e75" anchorX="center" anchorY="middle" renderOrder={5}>ZONE E</Text>
+      <Text position={[+56, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#0891b2" anchorX="center" anchorY="middle" renderOrder={5}>Far East</Text>
 
       <Text position={[0,   0.05, 20]}   rotation={[-Math.PI/2,0,0]} fontSize={3.2} color="#713f12" anchorX="center" anchorY="middle" renderOrder={5}>STAGING / SHIPPING</Text>
       <Text position={[0,   0.05, 23.2]} rotation={[-Math.PI/2,0,0]} fontSize={1.6} color="#92400e" anchorX="center" anchorY="middle" renderOrder={5}>Outbound Assembly &amp; Loading</Text>
@@ -150,7 +152,8 @@ function DockBayMarkings() {
           {/* Interior pad just inside the door */}
           <mesh renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.02, -37]}>
             <planeGeometry args={[5.8, 4]} />
-            <meshStandardMaterial color="#2a2a2a" transparent opacity={0.22} depthWrite={false} />
+            <meshBasicMaterial color="#2a2a2a" transparent opacity={0.22} depthWrite={false}
+              polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
           </mesh>
           {/* Dock number label at door — always visible */}
           <Text position={[x, 0.06, -37.8]} rotation={[-Math.PI / 2, 0, 0]} fontSize={1.5}
@@ -161,13 +164,15 @@ function DockBayMarkings() {
           {([-3.1, 3.1] as const).map((ox, j) => (
             <mesh key={j} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[x + ox, -0.006, -50]}>
               <planeGeometry args={[0.2, 24]} />
-              <meshStandardMaterial color={LINE_COLOR} transparent opacity={0.55} depthWrite={false} />
+              <meshBasicMaterial color={LINE_COLOR} transparent opacity={0.55} depthWrite={false}
+              polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
             </mesh>
           ))}
           {/* Stop bar at back of bay */}
           <mesh renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[x, -0.006, -62]}>
             <planeGeometry args={[6.8, 0.28]} />
-            <meshStandardMaterial color={LINE_COLOR} transparent opacity={0.55} depthWrite={false} />
+            <meshBasicMaterial color={LINE_COLOR} transparent opacity={0.55} depthWrite={false}
+              polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
           </mesh>
         </group>
       ))}
@@ -175,7 +180,8 @@ function DockBayMarkings() {
         <group key={`ship-bay-${i}`}>
           <mesh renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.02, 37]}>
             <planeGeometry args={[5.8, 4]} />
-            <meshStandardMaterial color="#2a2a2a" transparent opacity={0.22} depthWrite={false} />
+            <meshBasicMaterial color="#2a2a2a" transparent opacity={0.22} depthWrite={false}
+              polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
           </mesh>
           <Text position={[x, 0.06, 37.8]} rotation={[-Math.PI / 2, 0, 0]} fontSize={1.5}
             color="#ffe040" anchorX="center" anchorY="middle" renderOrder={4}>
@@ -184,12 +190,14 @@ function DockBayMarkings() {
           {([-3.1, 3.1] as const).map((ox, j) => (
             <mesh key={j} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[x + ox, -0.006, 50]}>
               <planeGeometry args={[0.2, 24]} />
-              <meshStandardMaterial color={LINE_COLOR} transparent opacity={0.55} depthWrite={false} />
+              <meshBasicMaterial color={LINE_COLOR} transparent opacity={0.55} depthWrite={false}
+              polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
             </mesh>
           ))}
           <mesh renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[x, -0.006, 62]}>
             <planeGeometry args={[6.8, 0.28]} />
-            <meshStandardMaterial color={LINE_COLOR} transparent opacity={0.55} depthWrite={false} />
+            <meshBasicMaterial color={LINE_COLOR} transparent opacity={0.55} depthWrite={false}
+              polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
           </mesh>
         </group>
       ))}
@@ -321,7 +329,7 @@ function SafetyStations() {
   ];
   return (
     <group>
-      {positions.map(([px, py, pz], i) => (
+      {positions.map(([px, , pz], i) => (
         <group key={i} position={[px, 0, pz]}>
           {/* Red cabinet */}
           <mesh position={[0, 1.0, 0]}>
@@ -485,7 +493,8 @@ function AisleLines() {
           {([-1.6, 1.6] as const).map((off, i) => (
             <mesh key={i} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[ax + off, 0.02, -5]}>
               <planeGeometry args={[0.22, 62]} />
-              <meshStandardMaterial color={LINE_COLOR} transparent opacity={0.85} depthWrite={false} />
+              <meshBasicMaterial color={LINE_COLOR} transparent opacity={0.85} depthWrite={false}
+                polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
             </mesh>
           ))}
         </group>
@@ -494,14 +503,16 @@ function AisleLines() {
       {([-1.2, 1.2] as const).map((off, i) => (
         <mesh key={`ca-${i}`} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 11 + off * 2]}>
           <planeGeometry args={[120, 0.22]} />
-          <meshStandardMaterial color={LINE_COLOR} transparent opacity={0.85} depthWrite={false} />
+          <meshBasicMaterial color={LINE_COLOR} transparent opacity={0.85} depthWrite={false}
+            polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
         </mesh>
       ))}
       {/* Dashed center chevrons */}
       {Array.from({ length: 28 }, (_, i) => (
         <mesh key={`dash-${i}`} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[-66 + i * 5, 0.02, 11]}>
           <planeGeometry args={[3, 0.14]} />
-          <meshStandardMaterial color={LINE_COLOR} transparent opacity={0.6} depthWrite={false} />
+          <meshBasicMaterial color={LINE_COLOR} transparent opacity={0.6} depthWrite={false}
+            polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
         </mesh>
       ))}
     </group>
@@ -518,7 +529,8 @@ function FloorJoints() {
       {joints.map((j, i) => (
         <mesh key={i} renderOrder={1} rotation={[-Math.PI / 2, 0, j.rot ? Math.PI / 2 : 0]} position={[j.x, 0.005, j.z]}>
           <planeGeometry args={[0.08, 84]} />
-          <meshStandardMaterial color="#b4b0a6" transparent opacity={0.5} depthWrite={false} />
+          <meshBasicMaterial color="#b4b0a6" transparent opacity={0.5} depthWrite={false}
+            polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
         </mesh>
       ))}
     </group>
@@ -631,8 +643,10 @@ function DockLevelers({ wall, doors }: { wall: 'south' | 'north'; doors: number[
 }
 
 // ── Truck Model ───────────────────────────────────────────────────────────────
-export interface TruckProps { x: number; z: number; facingNorth: boolean; loadPct?: number }
-export function TruckModel({ x, z, facingNorth, loadPct = 0 }: TruckProps) {
+export interface TruckProps { x: number; z: number; facingNorth: boolean; loadPct?: number; truckType?: 'recv' | 'ship' }
+export function TruckModel({ x, z, facingNorth, loadPct = 0, truckType }: TruckProps) {
+  // Receiving trucks = green stripe on trailer, shipping trucks = blue stripe
+  const trailerAccent = truckType === 'recv' ? '#2d7a3a' : truckType === 'ship' ? '#1e4d8c' : undefined;
   const dir = facingNorth ? 1 : -1;
   // Wheels r=0.75 → diameter 1.5. Trailer h=6.0 → half=3.0. Body bottom at 1.4 → center at 4.4.
   const TY       = 4.4;           // trailer body center Y
@@ -651,6 +665,13 @@ export function TruckModel({ x, z, facingNorth, loadPct = 0 }: TruckProps) {
         <boxGeometry args={[5.4, 0.25, 18.4]} />
         <meshStandardMaterial color="#d0cdc8" roughness={0.75} />
       </mesh>
+      {/* Color stripe: green for inbound (recv), blue for outbound (ship) */}
+      {trailerAccent && (
+        <mesh position={[x, TY - 1.8, trailerZ]}>
+          <boxGeometry args={[5.22, 0.55, 18.05]} />
+          <meshStandardMaterial color={trailerAccent} roughness={0.6} metalness={0.1} />
+        </mesh>
+      )}
       {/* Structural ribs */}
       {[-6.5, -2.5, 1.5, 5.5].map((zOff, i) => (
         <mesh key={i} position={[x, TY, trailerZ + zOff]}>

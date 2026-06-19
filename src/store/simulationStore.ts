@@ -12,6 +12,7 @@ interface SimulationStore extends SimulationState {
   setSelectedEquipment: (id: string | null) => void;
   setActiveView: (v: SimulationState['activeView']) => void;
   setImprovementScenario: (key: string | null) => void;
+  setAtScenario: (key: string | null) => void;
   tick: (deltaMs: number) => void;
 }
 
@@ -25,6 +26,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   selectedEquipment: null,
   activeView: 'SIMULATION',
   improvementScenario: null,
+  atScenario: null,
 
   setCurrentTime: (t) => set({ currentTime: Math.max(0, Math.min(t, SHIFT_DATA.shiftDuration)) }),
   setPlaying: (v) => set({ isPlaying: v }),
@@ -35,6 +37,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   setSelectedEquipment: (id) => set({ selectedEquipment: id }),
   setActiveView: (v) => set({ activeView: v }),
   setImprovementScenario: (key) => set({ improvementScenario: key }),
+  setAtScenario: (key) => set({ atScenario: key }),
 
   tick: (deltaMs) => {
     const { isPlaying, currentTime, playbackSpeed } = get();

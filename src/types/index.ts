@@ -102,4 +102,5 @@ export interface SimulationState {
   selectedEquipment: string | null;
   activeView: 'SIMULATION' | 'ANALYTICS' | 'RECOMMENDATIONS';
   improvementScenario: string | null;
+  atScenario: string | null;
 }

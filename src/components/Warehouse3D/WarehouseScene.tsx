@@ -167,7 +167,7 @@ function TruckSlot({ dockIdx, southWall, x }: { dockIdx: number; southWall: bool
 
   return (
     <group ref={groupRef} visible={false}>
-      <TruckModel x={x} z={0} facingNorth={!southWall} loadPct={0} />
+      <TruckModel x={x} z={0} facingNorth={!southWall} loadPct={0} truckType={southWall ? 'recv' : 'ship'} />
       {/* Cargo pallets visible inside the trailer as it fills */}
       {/* Interior floor at y=1.4 (trailer center 4.4 − half-height 3.0). */}
       {/* Cargo center at 1.4 + half-box-height 0.9 = 2.3. Boxes fill wider trailer. */}
@@ -204,37 +204,70 @@ function TruckSystem() {
 function SceneLighting() {
   return (
     <>
-      <ambientLight intensity={3.2} color="#e8ecf4" />
-      <directionalLight position={[30, 60, 40]} intensity={2.2} color="#ffffff" />
-      <directionalLight position={[-40, 30, -30]} intensity={1.2} color="#dde8f8" />
-      <directionalLight position={[0, 20, 0]} intensity={0.8} color="#f0f4ff" />
-      {([-40, -20, 0, 20, 40] as const).flatMap(x =>
-        ([-20, 5] as const).map((z, j) => (
-          <pointLight key={`${x}-${j}`} position={[x, 11, z]} intensity={3.5} color="#fff4e0" distance={40} decay={1.2} />
-        ))
-      )}
-      <pointLight position={[-25, 6, -36]} intensity={2.0} color="#ffe8c0" distance={20} />
-      <pointLight position={[  0, 6, -36]} intensity={2.0} color="#ffe8c0" distance={20} />
-      <pointLight position={[-10, 6,  36]} intensity={2.0} color="#ffe0c0" distance={20} />
-      <pointLight position={[ 15, 6,  36]} intensity={2.0} color="#ffe0c0" distance={20} />
+      <ambientLight intensity={3.8} color="#e8ecf4" />
+      <directionalLight position={[30, 60, 40]} intensity={2.4} color="#ffffff" />
+      <directionalLight position={[-40, 30, -30]} intensity={1.4} color="#dde8f8" />
+      <directionalLight position={[0, 20, 0]} intensity={1.0} color="#f0f4ff" />
+      {/* 6 point lights instead of 14 — same visual quality, much cheaper */}
+      <pointLight position={[-40, 11, -20]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
+      <pointLight position={[  0, 11, -20]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
+      <pointLight position={[ 40, 11, -20]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
+      <pointLight position={[-40, 11,   5]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
+      <pointLight position={[  0, 11,   5]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
+      <pointLight position={[ 40, 11,   5]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
     </>
   );
 }
 
 function SimulationTicker() {
-  const { tick } = useSimulationStore();
-  useFrame((_, delta) => tick(delta * 1000));
+  const lastWriteRef = useRef(0);
+  useFrame((_, delta) => {
+    const store = useSimulationStore.getState();
+    if (!store.isPlaying) return;
+    const next = store.currentTime + delta * 1000 * store.playbackSpeed;
+    if (next >= 28_800_000) {
+      useSimulationStore.setState({ currentTime: 28_800_000, isPlaying: false });
+      return;
+    }
+    // Write to store at most 15fps (every ~67ms) — React UI subscribers don't
+    // need sub-frame precision; 3D animators call getState() imperatively.
+    const now = performance.now();
+    if (now - lastWriteRef.current >= 67) {
+      lastWriteRef.current = now;
+      useSimulationStore.setState({ currentTime: next });
+    }
+  });
+  return null;
+}
+
+// Computes activeEvent imperatively each frame; only triggers a store write
+// when the event ID changes (rare), so WarehouseScene doesn't re-render every tick.
+function EventMonitor({ improvementScenario }: { improvementScenario: string | null }) {
+  const lastEventId = useRef<string | null | undefined>(undefined);
+  useFrame(() => {
+    const { currentTime } = useSimulationStore.getState();
+    const ev = getActiveEvent(currentTime, improvementScenario);
+    const id = ev?.id ?? null;
+    if (id !== lastEventId.current) {
+      lastEventId.current = id;
+      useSimulationStore.setState({ activeEventId: id } as any);
+    }
+  });
   return null;
 }
 
 // ── Main Scene ────────────────────────────────────────────────────────────────
 export function WarehouseScene() {
-  const { improvementScenario, currentTime } = useSimulationStore();
+  const improvementScenario = useSimulationStore(s => s.improvementScenario);
+  const activeEventId       = useSimulationStore(s => (s as any).activeEventId as string | null);
   const config = getScenarioConfig(improvementScenario);
-  const activeEvent = getActiveEvent(currentTime, improvementScenario);
+  // Derive activeEvent from the id stored by EventMonitor (changes rarely)
+  const activeEvent = activeEventId != null
+    ? getActiveEvent(useSimulationStore.getState().currentTime, improvementScenario)
+    : null;
 
   return (
-    <Canvas gl={{ antialias: true, alpha: false }} style={{ width: '100%', height: '100%' }}>
+    <Canvas gl={{ antialias: true, alpha: false, logarithmicDepthBuffer: true }} style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={['#b8ccd8']} />
       <fog attach="fog" args={['#c4d8e4', 120, 240]} />
 
@@ -323,6 +356,7 @@ export function WarehouseScene() {
       </Suspense>
 
       <SimulationTicker />
+      <EventMonitor improvementScenario={improvementScenario} />
     </Canvas>
   );
 }
