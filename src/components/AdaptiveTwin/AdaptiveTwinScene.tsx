@@ -90,7 +90,7 @@ function Floor() {
       {AISLE_Z.map(z => (
         <mesh key={z} rotation={[-Math.PI/2,0,0]}
               position={[(RACK_X0+RACK_X1)/2,0,z]}
-              polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1}>
+              {...({ polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 } as any)}>
           <planeGeometry args={[RACK_SPAN+2,8.5]} />
           <meshStandardMaterial color="#bfc5cc" roughness={0.95} />
         </mesh>
@@ -98,7 +98,7 @@ function Floor() {
       {AISLE_Z.flatMap(z=>[-4.2,4.2].map(dz=>(
         <mesh key={`${z}-${dz}`} rotation={[-Math.PI/2,0,0]}
               position={[(RACK_X0+RACK_X1)/2,0.003,z+dz]}
-              polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2}>
+              {...({ polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } as any)}>
           <planeGeometry args={[RACK_SPAN+2,0.20]} />
           <meshBasicMaterial color="#f59e0b" />
         </mesh>
@@ -107,7 +107,7 @@ function Floor() {
         AISLE_Z.map(z=>(
           <mesh key={`${i}-${z}`} rotation={[-Math.PI/2,0,0]}
                 position={[cx,0.001,z]}
-                polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1}>
+                {...({ polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 } as any)}>
             <planeGeometry args={[18,6]} />
             <meshStandardMaterial color="#c8cdd4" roughness={0.92} />
           </mesh>
@@ -116,7 +116,7 @@ function Floor() {
       {AISLE_Z.map(z=>(
         <mesh key={z} rotation={[-Math.PI/2,0,0]}
               position={[(SHIP_IO_X+CONV_END_X)/2+4,0.001,z]}
-              polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1}>
+              {...({ polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 } as any)}>
           <planeGeometry args={[SHIP_DOCK_X-SHIP_IO_X,5]} />
           <meshStandardMaterial color="#bfc5cc" roughness={0.92} />
         </mesh>
