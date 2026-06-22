@@ -211,14 +211,14 @@ export const DOCK_WORKER_2_ROUTE: EquipmentRoute = {
   ],
 };
 
-// Zone B shelf picker (moves between racks in the storage zone)
+// Zone C shelf picker — walks the aisle between x=-22 and x=-14 racks (aisle centre x=-18)
 export const SHELF_PICKER_1_ROUTE: EquipmentRoute = {
   id: 'shelf-picker-1', speedUPerMs: 0.0016, offsetMs: 3500,
   waypoints: [
-    { x: -14, z: -15, pauseMs: 3000, task: 'PICKING', carryingLoad: false },
-    { x: -14, z:  +5, pauseMs: 2000, task: 'PICKING', carryingLoad: true  },
-    { x: -14, z: +13, pauseMs: 2000, task: 'STAGING', carryingLoad: false },
-    { x: -14, z: -15, pauseMs: 0,    task: 'TRAVEL',  carryingLoad: false },
+    { x: -18, z: -15, pauseMs: 3000, task: 'PICKING', carryingLoad: false },
+    { x: -18, z:  +5, pauseMs: 2000, task: 'PICKING', carryingLoad: true  },
+    { x: -18, z: +13, pauseMs: 2000, task: 'STAGING', carryingLoad: false },
+    { x: -18, z: -15, pauseMs: 0,    task: 'TRAVEL',  carryingLoad: false },
   ],
 };
 

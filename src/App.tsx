@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { ComposableMap, Geographies, Geography, Marker, Annotation } from 'react-simple-maps';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import statesGeo from 'us-atlas/states-10m.json';
 import { TrendChart } from './components/Dashboard/TrendChart';
 import { AIRecommendations } from './components/Dashboard/AIRecommendations';
 import { WarehouseScene, getTruckStates } from './components/Warehouse3D/WarehouseScene';
@@ -43,7 +47,7 @@ type AppView    = 'home' | 'network' | 'warehouse';
 type MainTab    = 'warehouse-ops' | 'adaptive-twin' | 'autonomous-dock';
 type SubView    = 'overview' | 'simulation' | 'analytics' | 'ai' | 'kpi-impact';
 type ATSubView  = 'live' | 'anomalies' | 'ai-scenarios' | 'simulation' | 'control';
-type ADSubView  = 'live-ops' | 'ai-decisions' | 'simulation';
+type ADSubView  = 'live-ops' | 'ai-decisions' | 'simulation' | 'kpi-impact';
 
 // ── Main tabs config ──────────────────────────────────────────────────────────
 const MAIN_TABS: { id: MainTab; label: string; Icon: typeof Activity; color: string }[] = [
@@ -192,8 +196,9 @@ function TopNav({
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 24px', height: 40 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
             {([
-              { id: 'live-ops'     as ADSubView, label: 'Live Operations', Icon: Radio   },
-              { id: 'ai-decisions' as ADSubView, label: 'AI Decisions',    Icon: Brain   },
+              { id: 'live-ops'     as ADSubView, label: 'Live Operations',   Icon: Radio   },
+              { id: 'ai-decisions' as ADSubView, label: 'AI Decisions',      Icon: Brain   },
+              { id: 'simulation'   as ADSubView, label: 'Visual Simulation', Icon: Play    },
             ]).map(({ id, label, Icon }) => {
               const active = adSubView === id;
               return (
@@ -211,19 +216,19 @@ function TopNav({
                 </button>
               );
             })}
+            <button onClick={() => setAdSubView('kpi-impact')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '5px 14px', borderRadius: '6px 6px 0 0', fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', border: 'none', transition: 'all 0.12s',
+                background: adSubView === 'kpi-impact' ? PAGE : 'transparent',
+                color: adSubView === 'kpi-impact' ? '#15803d' : '#16a34a',
+                borderBottom: adSubView === 'kpi-impact' ? `2px solid #16a34a` : '2px solid transparent',
+              }}>
+              <Zap size={12} />
+              KPI Impact
+            </button>
           </div>
-          <button onClick={() => setAdSubView('simulation')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700,
-              cursor: 'pointer', border: 'none', transition: 'all 0.15s',
-              background: adSubView === 'simulation' ? '#0f172a' : '#0891b2',
-              color: '#fff',
-              boxShadow: '0 1px 4px rgba(8,145,178,0.4)',
-            }}>
-            <Play size={11} />
-            Run Simulation
-          </button>
         </div>
       )}
 
@@ -516,16 +521,9 @@ function Overview({ setSubView }: { setSubView: (v: SubView) => void }) {
           <h1 style={{ fontSize: 22, fontWeight: 800, color: T1, margin: 0, letterSpacing: '-0.02em' }}>Shift Summary</h1>
           <p style={{ fontSize: 13, color: T2, margin: '4px 0 0' }}>Jun 18, 2026 · Day Shift · 06:00 – 14:00</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 99, padding: '4px 10px' }}>
-            ● Behind Target
-          </span>
-          <button onClick={() => setSubView('simulation')}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: T1, color: '#fff', border: 'none' }}>
-            <Play size={12} />
-            Run Simulation
-          </button>
-        </div>
+        <span style={{ fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 99, padding: '4px 10px' }}>
+          ● Behind Target
+        </span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
@@ -1186,7 +1184,7 @@ function ATAnomaliesView({ setAtSubView }: { setAtSubView: (v: ATSubView) => voi
 }
 
 function ATAIScenariosView({ setAtSubView }: { setAtSubView: (v: ATSubView) => void }) {
-  const { setAtScenario, setCurrentTime, setPlaybackSpeed, setPlaying } = useSimulationStore();
+  const { atScenario, setAtScenario, setCurrentTime, setPlaybackSpeed, setPlaying } = useSimulationStore();
 
   const handleRunSim = (scenarioId: string) => {
     setAtScenario(scenarioId);
@@ -1202,12 +1200,42 @@ function ATAIScenariosView({ setAtSubView }: { setAtSubView: (v: ATSubView) => v
         <h1 style={{ fontSize: 22, fontWeight: 800, color: T1, margin: 0, letterSpacing: '-0.02em' }}>AI Improvement Scenarios</h1>
         <p style={{ fontSize: 13, color: T2, margin: '4px 0 0' }}>Simulated interventions — select a scenario to see the projected impact in 3D</p>
       </div>
+
+      {/* Active scenario indicator — mirrors Warehouse Ops improved-simulation banner */}
+      {atScenario && (() => {
+        const activeS = AT_SCENARIOS.find(s => s.id === atScenario);
+        const activeAnomaly = activeS ? AT_ANOMALIES.find(a => a.id === activeS.anomalyId) : null;
+        return activeS ? (
+          <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: '#dcfce7', border: '1px solid #86efac', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Zap size={16} color={GREEN} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: GREEN, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>AI Fix Active — Improved Scenario Running</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T1 }}>{activeS.title}</div>
+              {activeAnomaly && (
+                <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>Fixing: {activeAnomaly.title}</div>
+              )}
+            </div>
+            <button onClick={() => { setAtScenario(null); setPlaying(false); setCurrentTime(0); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: T2, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '6px 11px', cursor: 'pointer', flexShrink: 0 }}>
+              <RotateCcw size={11} />
+              Reset
+            </button>
+          </div>
+        ) : null;
+      })()}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {AT_SCENARIOS.map(s => {
           const catColor = AT_CATEGORY_COLORS[s.category];
           const anomaly  = AT_ANOMALIES.find(a => a.id === s.anomalyId);
+          const isActive = atScenario === s.id;
           return (
-            <div key={s.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '22px 24px', boxShadow: CARDSH }}>
+            <div key={s.id} style={{ background: CARD, border: isActive ? '2px solid #16a34a' : `1px solid ${BORDER}`, borderRadius: 14, padding: '22px 24px', boxShadow: isActive ? '0 0 0 3px #bbf7d033' : CARDSH, position: 'relative', overflow: 'hidden' }}>
+              {/* Active top bar — same pattern as Warehouse Ops simulation toolbar */}
+              {isActive && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: '#16a34a' }} />}
+
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
                 <div style={{ width: 38, height: 38, borderRadius: 9, background: `${catColor}18`, border: `1px solid ${catColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <FlaskConical size={16} color={catColor} />
@@ -1217,7 +1245,12 @@ function ATAIScenariosView({ setAtSubView }: { setAtSubView: (v: ATSubView) => v
                     <span style={{ fontSize: 9, fontWeight: 700, borderRadius: 4, padding: '2px 7px', background: `${catColor}18`, color: catColor, border: `1px solid ${catColor}44` }}>
                       {s.category}
                     </span>
-                    {anomaly && (
+                    {isActive && (
+                      <span style={{ fontSize: 9, fontWeight: 700, borderRadius: 4, padding: '2px 7px', background: '#f0fdf4', color: GREEN, border: '1px solid #bbf7d0' }}>
+                        ● ACTIVE
+                      </span>
+                    )}
+                    {anomaly && !isActive && (
                       <span style={{ fontSize: 10, color: T3 }}>Fixes: {anomaly.severity === 'critical' ? '🔴' : '🟡'} {anomaly.title.slice(0, 36)}…</span>
                     )}
                   </div>
@@ -1225,6 +1258,15 @@ function ATAIScenariosView({ setAtSubView }: { setAtSubView: (v: ATSubView) => v
                   <div style={{ fontSize: 12, color: T2, lineHeight: 1.6 }}>{s.description}</div>
                 </div>
               </div>
+
+              {/* What this fixes — anomaly problem description */}
+              {anomaly && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: RED, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Problem Being Fixed</div>
+                  <div style={{ fontSize: 12, color: '#7f1d1d', fontWeight: 600 }}>{anomaly.title}</div>
+                  <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>{anomaly.metric} (target: {anomaly.baseline}) · Impact: {anomaly.impact}</div>
+                </div>
+              )}
 
               {/* KPI delta preview */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 16 }}>
@@ -1252,11 +1294,24 @@ function ATAIScenariosView({ setAtSubView }: { setAtSubView: (v: ATSubView) => v
                 <div style={{ padding: '8px 12px', borderRadius: 7, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
                   <span style={{ fontSize: 11, color: GREEN, fontWeight: 600 }}>{s.estimatedImpact}</span>
                 </div>
-                <button onClick={() => handleRunSim(s.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: catColor, color: '#fff', border: 'none', boxShadow: `0 2px 8px ${catColor}44` }}>
-                  <Play size={12} />
-                  Run 3D Simulation
-                </button>
+                {isActive ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setAtSubView('simulation')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: '#f0fdf4', color: GREEN, border: '1px solid #86efac' }}>
+                      View 3D Twin
+                    </button>
+                    <button onClick={() => { setAtScenario(null); setPlaying(false); setCurrentTime(0); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: PAGE, color: T2, border: `1px solid ${BORDER}` }}>
+                      <RotateCcw size={11} /> Reset
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => handleRunSim(s.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: catColor, color: '#fff', border: 'none', boxShadow: `0 2px 8px ${catColor}44` }}>
+                    <Play size={12} />
+                    Run 3D Simulation
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -1723,18 +1778,11 @@ function ADLiveOpsView({ setAdSubView }: { setAdSubView: (v: ADSubView) => void 
           <h1 style={{ fontSize: 22, fontWeight: 800, color: T1, margin: 0, letterSpacing: '-0.02em' }}>Autonomous Dock — Live Operations</h1>
           <p style={{ fontSize: 13, color: T2, margin: '4px 0 0' }}>Jun 18, 2026 · Day Shift · Real-time dock intelligence</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setAdSubView('ai-decisions')}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: CARD, color: T1, border: `1px solid ${BORDER}` }}>
-            <Brain size={13} />
-            AI Decisions
-          </button>
-          <button onClick={() => setAdSubView('simulation')}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', boxShadow: `0 2px 8px ${CYAN}44` }}>
-            <Play size={13} />
-            Run Simulation
-          </button>
-        </div>
+        <button onClick={() => setAdSubView('ai-decisions')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: CARD, color: T1, border: `1px solid ${BORDER}` }}>
+          <Brain size={13} />
+          AI Decisions
+        </button>
       </div>
 
       {/* KPI cards */}
@@ -1877,21 +1925,14 @@ function ADAIDecisionsView({ setAdSubView }: { setAdSubView: (v: ADSubView) => v
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: PAGE, padding: '28px 28px 40px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: T1, margin: 0, letterSpacing: '-0.02em' }}>AI Dock Decisions</h1>
-          <p style={{ fontSize: 13, color: T2, margin: '4px 0 0' }}>Optimal assignments generated from live queue and dock state</p>
-        </div>
-        <button onClick={() => setAdSubView('simulation')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', boxShadow: `0 2px 8px ${CYAN}44` }}>
-          <Play size={13} />
-          Run Simulation
-        </button>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: T1, margin: 0, letterSpacing: '-0.02em' }}>AI Dock Decisions</h1>
+        <p style={{ fontSize: 13, color: T2, margin: '4px 0 0' }}>Optimal assignments generated from live queue and dock state</p>
       </div>
 
       {/* Receiving assignments */}
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '22px 24px', boxShadow: CARDSH, marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 36, height: 36, borderRadius: 9, background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Truck size={15} color="#1d4ed8" />
@@ -1913,6 +1954,28 @@ function ADAIDecisionsView({ setAdSubView }: { setAdSubView: (v: ADSubView) => v
               <CheckCircle size={11} /> Applied
             </span>
           )}
+        </div>
+
+        {/* Problem / Solution callout */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <AlertTriangle size={12} color={RED} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: RED, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Problem</span>
+            </div>
+            <p style={{ fontSize: 12, color: '#7f1d1d', margin: 0, lineHeight: 1.55 }}>
+              Trucks are assigned to docks sequentially — no consideration of which storage zone the cargo belongs to. T-103 (Zone A SKUs) is currently staged at R-3, the furthest dock from Zone A, adding 13 m of extra forklift travel per pallet and inflating turn time by ~18 min.
+            </p>
+          </div>
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <Zap size={12} color="#1d4ed8" style={{ flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>AI Solution</span>
+            </div>
+            <p style={{ fontSize: 12, color: '#1e3a5f', margin: 0, lineHeight: 1.55 }}>
+              AI scores each truck against every idle dock using zone-distance matrix. Each truck gets the dock with the shortest path to its primary SKU storage zone. Result: avg pathing distance drops from 24 m to 18 m — saving 31 forklift trips per shift and recovering ~22 min of turn time across all active bays.
+            </p>
+          </div>
         </div>
 
         {/* Pathing matrix */}
@@ -2002,6 +2065,28 @@ function ADAIDecisionsView({ setAdSubView }: { setAdSubView: (v: ADSubView) => v
           )}
         </div>
 
+        {/* Problem / Solution callout */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <AlertTriangle size={12} color={RED} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: RED, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Problem</span>
+            </div>
+            <p style={{ fontSize: 12, color: '#7f1d1d', margin: 0, lineHeight: 1.55 }}>
+              WMS assigns dock doors by wave arrival order regardless of staging congestion. Wave W-04 (38 pallets) is staged at S-2 where congestion is at 8 — the highest in the yard — adding pick-path conflicts and delaying dispatch. Load sequencing is also random: small boxes loaded first get crushed by heavy items, wasting up to 28% of trailer space.
+            </p>
+          </div>
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <Zap size={12} color={GREEN} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: GREEN, textTransform: 'uppercase', letterSpacing: '0.07em' }}>AI Solution</span>
+            </div>
+            <p style={{ fontSize: 12, color: '#14532d', margin: 0, lineHeight: 1.55 }}>
+              AI re-routes each wave to the dock with the lowest staging congestion score, cutting conflicts and enabling parallel unload. Load sequencing is reordered large → medium → small: heavy items create a stable base layer, medium fill mid-height, and smalls plug remaining gaps — boosting trailer fill rate from ~72% to 93%+ across all active waves.
+            </p>
+          </div>
+        </div>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {shipAssignments.map(({ order, dock, sequence, optimisedFill, congestionSaving }) => (
             <div key={order.id} style={{ background: shipApplied ? '#f0fdf4' : PAGE, border: `1px solid ${shipApplied ? '#bbf7d0' : BORDER}`, borderRadius: 10, padding: '16px 18px' }}>
@@ -2047,237 +2132,548 @@ function ADAIDecisionsView({ setAdSubView }: { setAdSubView: (v: ADSubView) => v
   );
 }
 
-// ── Autonomous Dock — Simulation (KPI impact) ─────────────────────────────────
-function ADSimulationView({ setAdSubView }: { setAdSubView: (v: ADSubView) => void }) {
+// ── Dock Timeline (professional Gantt schedule) ───────────────────────────────
+function DockTimeline({ phase }: { phase: 'baseline' | 'optimised' }) {
+  const isOpt = phase === 'optimised';
+
+  type Block = { start: number; end: number; truck: string; carrier: string; zone: string; path: string; flag?: 'warn' | 'ok' | 'idle' };
+  type Row   = { id: string; type: 'recv' | 'ship'; blocks: Block[] };
+
+  const ROWS_BASE: Row[] = [
+    { id: 'R-1', type: 'recv', blocks: [{ start: 0,  end: 48, truck: 'T-101', carrier: 'XPO Logistics',  zone: 'Zone B', path: '22 m' }] },
+    { id: 'R-2', type: 'recv', blocks: [{ start: 0,  end: 35, truck: 'T-102', carrier: 'FedEx Freight',  zone: 'Zone B', path: '20 m' }, { start: 40, end: 97, truck: 'T-104', carrier: 'Estes Express', zone: 'Zone B', path: '20 m' }] },
+    { id: 'R-3', type: 'recv', blocks: [{ start: 12, end: 62, truck: 'T-103', carrier: 'Old Dominion',   zone: 'Zone A', path: '31 m', flag: 'warn' }] },
+    { id: 'S-1', type: 'ship', blocks: [{ start: 0,  end: 35, truck: 'W-06',  carrier: 'Wave 06',        zone: 'Ship',   path: '92%' }] },
+    { id: 'S-2', type: 'ship', blocks: [{ start: 0,  end: 91, truck: 'W-07',  carrier: 'Wave 07',        zone: 'Ship',   path: '71%', flag: 'warn' }] },
+    { id: 'S-3', type: 'ship', blocks: [] },
+  ];
+  const ROWS_OPT: Row[] = [
+    { id: 'R-1', type: 'recv', blocks: [{ start: 0,  end: 48, truck: 'T-101', carrier: 'XPO Logistics',  zone: 'Zone A', path: '18 m', flag: 'ok' }, { start: 52, end: 95, truck: 'T-103', carrier: 'Old Dominion', zone: 'Zone A', path: '18 m', flag: 'ok' }] },
+    { id: 'R-2', type: 'recv', blocks: [{ start: 0,  end: 35, truck: 'T-102', carrier: 'FedEx Freight',  zone: 'Zone B', path: '20 m', flag: 'ok' }, { start: 35, end: 75, truck: 'T-104', carrier: 'Estes Express', zone: 'Zone B', path: '20 m', flag: 'ok' }] },
+    { id: 'R-3', type: 'recv', blocks: [{ start: 41, end: 72, truck: 'T-105', carrier: 'Saia LTL',       zone: 'Zone C', path: '19 m', flag: 'ok' }] },
+    { id: 'S-1', type: 'ship', blocks: [{ start: 0,  end: 35, truck: 'W-06',  carrier: 'Wave 06',        zone: 'Ship',   path: '98%', flag: 'ok' }] },
+    { id: 'S-2', type: 'ship', blocks: [{ start: 0,  end: 55, truck: 'W-07',  carrier: 'Wave 07',        zone: 'Ship',   path: '100%', flag: 'ok' }] },
+    { id: 'S-3', type: 'ship', blocks: [{ start: 20, end: 68, truck: 'W-08',  carrier: 'Wave 08',        zone: 'Ship',   path: '94%', flag: 'ok' }] },
+  ];
+
+  type Event = { at: number; label: string; type: 'warn' | 'decision' | 'ok' };
+  const EVENTS_BASE: Event[] = [
+    { at: 12,  label: 'T-103 assigned R-3 — zone mismatch',         type: 'warn'     },
+    { at: 35,  label: 'T-102 unload complete',                       type: 'ok'       },
+    { at: 40,  label: 'T-104 queued 5 min — all bays occupied',      type: 'warn'     },
+    { at: 62,  label: 'T-103 departs — 50 min turn (target 41)',     type: 'warn'     },
+    { at: 91,  label: 'S-2 loading extended — staging congested',    type: 'warn'     },
+  ];
+  const EVENTS_OPT: Event[] = [
+    { at: 12,  label: 'T-103 routed R-1 — zone match, 18 m path',   type: 'decision' },
+    { at: 20,  label: 'S-3 activated — congestion pre-empted',       type: 'decision' },
+    { at: 35,  label: 'T-102 done · T-104 enters immediately',       type: 'ok'       },
+    { at: 55,  label: 'W-07 dispatched · fill rate 100%',            type: 'ok'       },
+    { at: 75,  label: 'All receiving bays cleared on schedule',      type: 'ok'       },
+  ];
+
+  const rows   = isOpt ? ROWS_OPT   : ROWS_BASE;
+  const events = isOpt ? EVENTS_OPT : EVENTS_BASE;
+
+  const TICKS  = [0, 15, 30, 45, 60, 75, 90, 105, 120];
+  const NOW    = 65; // "current time" indicator
+  const LW     = 72; // label column width
+  const ROW_H  = 36;
+  const HEADER = 22;
+  const SVG_W  = 820;
+  const TW     = SVG_W - LW - 4;
+  const toX    = (t: number) => LW + (t / 120) * TW;
+  const SVG_H  = rows.length * ROW_H + HEADER + 4;
+
+  const RECV_COL = '#3b82f6';
+  const SHIP_COL = '#8b5cf6';
+  const WARN_COL = '#f59e0b';
+  const OK_COL   = '#22c55e';
+
+  const flagColor = (f?: Block['flag']) =>
+    f === 'warn' ? '#dc2626' : f === 'ok' ? '#0891b2' : '#475569';
+
+  return (
+    <div style={{ background: '#0f172a', borderRadius: 12, padding: '16px 18px', marginBottom: 18, border: '1px solid #1e293b' }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <Clock size={12} color="#64748b" />
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#f1f5f9', letterSpacing: '0.02em' }}>DOCK ACTIVITY SCHEDULE</span>
+        <span style={{ fontSize: 10, color: '#475569', fontWeight: 500 }}>· 2-hour operational window · T+0 = 13:00</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#64748b', fontWeight: 600 }}>
+              <span style={{ width: 10, height: 3, borderRadius: 2, background: RECV_COL, display: 'inline-block' }} /> RECEIVING
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#64748b', fontWeight: 600 }}>
+              <span style={{ width: 10, height: 3, borderRadius: 2, background: SHIP_COL, display: 'inline-block' }} /> SHIPPING
+            </span>
+            {!isOpt && <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#64748b', fontWeight: 600 }}>
+              <span style={{ width: 10, height: 3, borderRadius: 2, background: '#dc2626', display: 'inline-block' }} /> SUBOPTIMAL
+            </span>}
+            {isOpt && <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#64748b', fontWeight: 600 }}>
+              <span style={{ width: 10, height: 3, borderRadius: 2, background: OK_COL, display: 'inline-block' }} /> AI-ROUTED
+            </span>}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#1e293b', borderRadius: 6, padding: '4px 10px', border: '1px solid #334155' }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
+            <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>NOW 13:05</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Gantt SVG */}
+      <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width="100%" style={{ display: 'block', overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="recv-grad" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor={RECV_COL} stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.8" />
+          </linearGradient>
+          <linearGradient id="ship-grad" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor={SHIP_COL} stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.8" />
+          </linearGradient>
+          <linearGradient id="warn-grad" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#dc2626" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#f87171" stopOpacity="0.75" />
+          </linearGradient>
+          <linearGradient id="ok-grad" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#0891b2" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.8" />
+          </linearGradient>
+        </defs>
+
+        {/* Column header: time ticks */}
+        <rect x={LW} y={0} width={TW} height={HEADER} fill="#0f172a" />
+        {TICKS.map(t => {
+          const x = toX(t);
+          const hh = String(13 + Math.floor(t / 60)).padStart(2, '0');
+          const mm = String(t % 60).padStart(2, '0');
+          return (
+            <g key={t}>
+              <line x1={x} y1={HEADER - 5} x2={x} y2={SVG_H} stroke="#1e293b" strokeWidth={1} />
+              <text x={x} y={12} textAnchor="middle" fontSize={8} fill="#475569" fontWeight={600}>{hh}:{mm}</text>
+            </g>
+          );
+        })}
+
+        {/* Rows */}
+        {rows.map((row, ri) => {
+          const y    = HEADER + ri * ROW_H;
+          const isR  = row.type === 'recv';
+          const hasBlocks = row.blocks.length > 0;
+          return (
+            <g key={row.id}>
+              {/* Alternating row bg */}
+              <rect x={0} y={y} width={SVG_W} height={ROW_H}
+                fill={ri % 2 === 0 ? '#0f172a' : '#111827'} />
+
+              {/* Separator */}
+              <line x1={0} y1={y + ROW_H} x2={SVG_W} y2={y + ROW_H} stroke="#1e293b" strokeWidth={0.5} />
+
+              {/* Label column */}
+              <rect x={0} y={y} width={LW - 1} height={ROW_H} fill="#0f172a" />
+              <line x1={LW - 1} y1={y} x2={LW - 1} y2={y + ROW_H} stroke="#1e293b" strokeWidth={1} />
+              <text x={6} y={y + 14} fontSize={9} fontWeight={700} fill={isR ? RECV_COL : SHIP_COL}>{row.id}</text>
+              <text x={6} y={y + 25} fontSize={7.5} fill="#475569" fontWeight={500}>{isR ? 'RECEIVING' : 'SHIPPING'}</text>
+
+              {/* Idle track */}
+              <rect x={LW} y={y + 10} width={TW} height={ROW_H - 20} rx={2} fill="#1e293b" />
+
+              {/* Blocks */}
+              {row.blocks.map((b, bi) => {
+                const x1  = toX(b.start);
+                const bw  = toX(b.end) - x1;
+                const grad = b.flag === 'warn' ? 'url(#warn-grad)' : b.flag === 'ok' ? 'url(#ok-grad)' : isR ? 'url(#recv-grad)' : 'url(#ship-grad)';
+                const col  = flagColor(b.flag);
+                return (
+                  <g key={bi}>
+                    <rect x={x1} y={y + 8} width={bw} height={ROW_H - 16} rx={3} fill={grad} />
+                    <rect x={x1} y={y + 8} width={3} height={ROW_H - 16} rx={1} fill={col} opacity={0.9} />
+                    {bw > 45 && (
+                      <>
+                        <text x={x1 + 8} y={y + 20} fontSize={8.5} fontWeight={700} fill="#fff">{b.truck}</text>
+                        <text x={x1 + 8} y={y + 29} fontSize={7} fill="rgba(255,255,255,0.65)">{b.carrier.split(' ')[0]} · {b.path}</text>
+                      </>
+                    )}
+                    {bw > 0 && bw <= 45 && (
+                      <text x={x1 + 5} y={y + 22} fontSize={7.5} fontWeight={700} fill="#fff">{b.truck}</text>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* Idle label if empty */}
+              {!hasBlocks && (
+                <text x={LW + 8} y={y + 22} fontSize={8} fill="#334155" fontStyle="italic">idle — unused capacity</text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Receiving / Shipping section divider */}
+        <line x1={0} y1={HEADER + 3 * ROW_H} x2={SVG_W} y2={HEADER + 3 * ROW_H} stroke="#334155" strokeWidth={1.5} strokeDasharray="4 3" />
+        <rect x={LW + 4} y={HEADER + 3 * ROW_H - 9} width={46} height={11} rx={2} fill="#334155" />
+        <text x={LW + 27} y={HEADER + 3 * ROW_H - 1} textAnchor="middle" fontSize={7} fill="#94a3b8" fontWeight={700}>SHIPPING</text>
+
+        {/* NOW line */}
+        <line x1={toX(NOW)} y1={HEADER} x2={toX(NOW)} y2={SVG_H} stroke="#22c55e" strokeWidth={1} strokeDasharray="3 3" opacity={0.6} />
+        <rect x={toX(NOW) - 12} y={HEADER} width={24} height={12} rx={2} fill="#14532d" />
+        <text x={toX(NOW)} y={HEADER + 8} textAnchor="middle" fontSize={7} fill="#22c55e" fontWeight={700}>NOW</text>
+      </svg>
+
+      {/* Event log strip */}
+      <div style={{ marginTop: 12, borderTop: '1px solid #1e293b', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>AI Decision Log</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 4 }}>
+          {events.map((e, i) => {
+            const hh = String(13 + Math.floor(e.at / 60)).padStart(2, '0');
+            const mm = String(e.at % 60).padStart(2, '0');
+            const col = e.type === 'warn' ? '#f59e0b' : e.type === 'ok' ? '#22c55e' : '#38bdf8';
+            const bg  = e.type === 'warn' ? '#1c1400' : e.type === 'ok' ? '#052e16' : '#0c1a2e';
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: bg, borderRadius: 5, padding: '5px 8px', border: `1px solid ${col}22` }}>
+                <span style={{ fontSize: 8, fontWeight: 700, color: col, minWidth: 34, paddingTop: 1, fontVariantNumeric: 'tabular-nums' }}>{hh}:{mm}</span>
+                <span style={{ fontSize: 8.5, color: '#94a3b8', lineHeight: 1.35 }}>{e.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Autonomous Dock — 3D Simulation (full warehouse replica) ──────────────────
+function ADSimulationView({
+  setAdSubView,
+  dockPhase,
+  setDockPhase,
+}: {
+  setAdSubView: (v: ADSubView) => void;
+  dockPhase: 'baseline' | 'optimised';
+  setDockPhase: (p: 'baseline' | 'optimised') => void;
+}) {
   const CYAN = AD_COLOR;
-  const [activeTab, setActiveTab] = useState<'dock' | 'truck'>('dock');
-
-  // Dock optimizer state
-  const [dockPhase, setDockPhase] = useState<'baseline' | 'optimised'>('baseline');
-  const [dockRunning, setDockRunning] = useState(false);
-
-  // Truck load state
-  const [loadMode, setLoadMode]     = useState<'baseline' | 'optimised'>('baseline');
-  const [loadAnimating, setLoadAnimating] = useState(false);
-  const [loadDone, setLoadDone]     = useState(false);
+  const [activeTab,    setActiveTab]    = useState<'dock' | 'load'>('dock');
+  const [dockRunning,  setDockRunning]  = useState(false);
+  const [loadMode,     setLoadMode]     = useState<'baseline' | 'optimised'>('baseline');
+  const [loadAnimating,setLoadAnimating]= useState(false);
+  const [dismissedEv,  setDismissedEv] = useState<string | null>(null);
+  const [showTimeline, setShowTimeline] = useState(false);
 
   const handleRunDock = () => {
     setDockRunning(true);
-    setTimeout(() => {
-      setDockPhase('optimised');
-      setDockRunning(false);
-    }, 1200);
+    setTimeout(() => { setDockPhase('optimised'); setDockRunning(false); }, 1400);
   };
-
+  const handleResetDock = () => { setDockPhase('baseline'); setDockRunning(false); };
   const handleOptimisePacking = () => {
     setLoadAnimating(true);
     setLoadMode('optimised');
-    setTimeout(() => {
-      setLoadAnimating(false);
-      setLoadDone(true);
-    }, 3000);
+    setTimeout(() => setLoadAnimating(false), 3000);
   };
+  const handleResetPacking = () => { setLoadMode('baseline'); setLoadAnimating(false); };
 
-  const handleResetDock = () => {
-    setDockPhase('baseline');
-    setDockRunning(false);
-  };
-
-  const handleResetPacking = () => {
-    setLoadMode('baseline');
-    setLoadAnimating(false);
-    setLoadDone(false);
-  };
-
-  const kpis = [
-    { label: 'Truck Fill Rate',    before: DOCK_BASELINE.fillRate,        after: DOCK_OPTIMISED.fillRate,        unit: '%',         good: true  },
-    { label: 'Staging Congestion', before: DOCK_BASELINE.congestionScore, after: DOCK_OPTIMISED.congestionScore, unit: ' pallets',  good: false },
-    { label: 'Avg Turn Time',      before: DOCK_BASELINE.turnTimeMin,     after: DOCK_OPTIMISED.turnTimeMin,     unit: ' min',      good: false },
-    { label: 'Docks Utilised',     before: DOCK_BASELINE.docksUtilised,   after: DOCK_OPTIMISED.docksUtilised,   unit: ' / 6',      good: true  },
-    { label: 'Missed Deadlines',   before: DOCK_BASELINE.missedDeadlines, after: DOCK_OPTIMISED.missedDeadlines, unit: '',          good: false },
+  const dockKPIs = [
+    { label: 'Truck Fill Rate',    before: DOCK_BASELINE.fillRate,        after: DOCK_OPTIMISED.fillRate,        unit: '%',        good: true  },
+    { label: 'Staging Congestion', before: DOCK_BASELINE.congestionScore, after: DOCK_OPTIMISED.congestionScore, unit: ' pallets', good: false },
+    { label: 'Avg Turn Time',      before: DOCK_BASELINE.turnTimeMin,     after: DOCK_OPTIMISED.turnTimeMin,     unit: ' min',     good: false },
+    { label: 'Docks Utilised',     before: DOCK_BASELINE.docksUtilised,   after: DOCK_OPTIMISED.docksUtilised,   unit: ' / 6',     good: true  },
+    { label: 'Missed Deadlines',   before: DOCK_BASELINE.missedDeadlines, after: DOCK_OPTIMISED.missedDeadlines, unit: '',         good: false },
   ];
 
-  const tabStyle = (id: 'dock' | 'truck') => ({
-    display: 'flex' as const, alignItems: 'center' as const, gap: 6,
-    padding: '7px 16px', borderRadius: '8px 8px 0 0', fontSize: 12, fontWeight: 600 as const,
-    cursor: 'pointer' as const, border: 'none',
-    background: activeTab === id ? CARD : 'transparent',
-    color: activeTab === id ? T1 : T2,
-    borderBottom: activeTab === id ? `2px solid ${CYAN}` : '2px solid transparent',
-    transition: 'all 0.15s',
-  });
+  // Active dock event for side panel
+  const activeDocEv = DOCK_EVENTS[0];
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+
       {/* ── Toolbar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
         <button onClick={() => setAdSubView('live-ops')}
           style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: T2, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: 6 }}>
           <ArrowLeft size={12} /> Back
         </button>
         <div style={{ width: 1, height: 16, background: BORDER }} />
-        <div>
-          <span style={{ fontSize: 14, fontWeight: 700, color: T1 }}>Visual Simulation</span>
-          <span style={{ fontSize: 12, color: T2, marginLeft: 10 }}>Dock routing · Truck load packing</span>
-        </div>
+
+        {/* Phase indicator */}
+        {activeTab === 'dock' && (dockPhase === 'optimised' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 99, padding: '4px 12px' }}>
+            <CheckCircle size={11} color="#16a34a" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d' }}>AI Dock Routing Active</span>
+          </div>
+        ) : (
+          <span style={{ fontSize: 13, fontWeight: 600, color: T1 }}>Autonomous Dock — Live Operations</span>
+        ))}
+        {activeTab === 'load' && (
+          <span style={{ fontSize: 13, fontWeight: 600, color: T1 }}>Truck Load Planner</span>
+        )}
+
         <div style={{ flex: 1 }} />
+
+        {/* Dock controls */}
+        {activeTab === 'dock' && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => setShowTimeline(p => !p)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: showTimeline ? '#e0f2fe' : PAGE, color: showTimeline ? '#0369a1' : T2, border: `1px solid ${showTimeline ? '#bae6fd' : BORDER}` }}>
+              <Clock size={11} /> Timeline
+            </button>
+            {dockPhase === 'baseline' ? (
+              <button onClick={handleRunDock} disabled={dockRunning}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', opacity: dockRunning ? 0.7 : 1 }}>
+                <Play size={11} /> {dockRunning ? 'Optimising…' : 'Run AI Optimisation'}
+              </button>
+            ) : (
+              <button onClick={handleResetDock}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: PAGE, color: T2, border: `1px solid ${BORDER}` }}>
+                <RotateCcw size={11} /> Reset
+              </button>
+            )}
+          </div>
+        )}
+        {activeTab === 'load' && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {loadMode === 'baseline' ? (
+              <button onClick={handleOptimisePacking} disabled={loadAnimating}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', opacity: loadAnimating ? 0.7 : 1 }}>
+                <Zap size={11} /> {loadAnimating ? 'Packing…' : 'Apply AI Packing'}
+              </button>
+            ) : (
+              <button onClick={handleResetPacking}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: PAGE, color: T2, border: `1px solid ${BORDER}` }}>
+                <RotateCcw size={11} /> Reset
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Tab switcher */}
         <div style={{ display: 'flex', gap: 2, background: PAGE, borderRadius: 9, padding: 3 }}>
-          {[
-            { id: 'dock' as const,  label: 'Dock Optimizer', Icon: Truck   },
-            { id: 'truck' as const, label: 'Load Planner',   Icon: Package },
-          ].map(({ id, label, Icon }) => (
+          {([
+            { id: 'dock' as const, label: 'Dock Optimizer', Icon: Truck   },
+            { id: 'load' as const, label: 'Load Planner',   Icon: Package },
+          ]).map(({ id, label, Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px',
+                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
                 borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
                 background: activeTab === id ? CARD : 'transparent',
                 color: activeTab === id ? T1 : T2,
                 boxShadow: activeTab === id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                 transition: 'all 0.15s',
               }}>
-              <Icon size={12} />
+              <Icon size={11} />
               {label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Content ── */}
-      <div style={{ flex: 1, overflowY: 'auto', background: PAGE }}>
+      {/* ── DOCK OPTIMIZER: 2D dock layout ── */}
+      {activeTab === 'dock' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 
-        {/* ── TAB: Dock Optimizer ── */}
-        {activeTab === 'dock' && (
-          <div style={{ padding: '24px 28px 36px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
-              <div>
-                <h2 style={{ fontSize: 17, fontWeight: 800, color: T1, margin: '0 0 4px', letterSpacing: '-0.01em' }}>Dock Assignment Optimizer</h2>
-                <p style={{ fontSize: 12, color: T2, margin: 0 }}>
-                  Top-down view — see which truck gets routed to which dock and the path to storage.
-                  <strong style={{ color: RED }}> Before:</strong> T-103 (Zone A) placed at R-3 — 31 m wasted path.
-                  <strong style={{ color: '#0891b2' }}> After:</strong> each truck matched to closest zone dock.
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 20 }}>
-                {dockPhase === 'baseline' ? (
-                  <button onClick={handleRunDock} disabled={dockRunning}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', opacity: dockRunning ? 0.7 : 1 }}>
-                    <Play size={12} />
-                    {dockRunning ? 'Optimising…' : 'Run Optimisation'}
-                  </button>
-                ) : (
-                  <>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: GREEN, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 12px' }}>
-                      <CheckCircle size={11} /> Optimised
-                    </span>
-                    <button onClick={handleResetDock}
-                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: PAGE, color: T2, border: `1px solid ${BORDER}` }}>
-                      <RotateCcw size={11} /> Reset
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+          {/* Main content: SVG canvas + event panel */}
+          <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
 
-            {/* SVG dock map */}
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '16px 18px', boxShadow: CARDSH, marginBottom: 18 }}>
+            {/* 2D dock layout SVG */}
+            <div style={{ flex: 1, overflowY: 'auto', background: '#f8fafc', padding: '20px 24px' }}>
               <DockLayoutSVG phase={dockPhase} />
             </div>
 
-            {/* KPI strip */}
-            <div style={{ background: '#0f172a', borderRadius: 12, padding: '16px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
-                <Zap size={13} color="#fbbf24" />
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24' }}>KPI Impact — Dock Routing</span>
-                {dockPhase === 'optimised' && <span style={{ fontSize: 10, color: '#64748b' }}>· optimised</span>}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-                {kpis.map(k => {
-                  const delta   = k.after - k.before;
-                  const isGood  = k.good ? delta >= 0 : delta <= 0;
-                  const showOpt = dockPhase === 'optimised';
-                  return (
-                    <div key={k.label} style={{ background: '#1e293b', borderRadius: 8, padding: '10px 12px', border: '1px solid #334155' }}>
-                      <div style={{ fontSize: 9, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{k.label}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontSize: 12, color: '#94a3b8', textDecoration: showOpt ? 'line-through' : 'none' }}>
-                          {k.before}{k.unit}
-                        </span>
-                        {showOpt && (
-                          <>
-                            <span style={{ fontSize: 9, color: '#475569' }}>→</span>
-                            <span style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{k.after}{k.unit}</span>
-                          </>
-                        )}
+            {/* Dock event side panel */}
+            {activeDocEv && dismissedEv !== activeDocEv.time && (
+              <div style={{ width: 320, flexShrink: 0, background: CARD, borderLeft: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                <div style={{ height: 4, background: CYAN, flexShrink: 0 }} />
+                <div style={{ padding: '16px 18px' }}>
+
+                  {/* Header */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 9, background: '#ecfeff', border: '1px solid #a5f3fc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Brain size={14} color={CYAN} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: CYAN, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3 }}>
+                        AI Dock Decision · {activeDocEv.time}
                       </div>
-                      {showOpt && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: isGood ? '#22c55e' : '#f87171', background: isGood ? '#14532d' : '#7f1d1d', borderRadius: 4, padding: '1px 6px', marginTop: 4, display: 'inline-block' }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: T1, lineHeight: 1.3 }}>{activeDocEv.dockId ?? 'System'}</div>
+                    </div>
+                    <button onClick={() => setDismissedEv(activeDocEv.time)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: T3, padding: 2, fontSize: 14, lineHeight: 1 }}>✕</button>
+                  </div>
+
+                  {/* Event summary */}
+                  <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 8, padding: '10px 12px', marginBottom: 14 }}>
+                    <p style={{ fontSize: 12, color: T1, lineHeight: 1.6, margin: 0, fontWeight: 500 }}>{activeDocEv.msg}</p>
+                  </div>
+
+                  {/* What the AI will do */}
+                  {activeDocEv.action && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <div style={{ width: 18, height: 18, borderRadius: 5, background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Zap size={10} color="#2563eb" />
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.07em' }}>What AI will do</span>
+                      </div>
+                      <div style={{ background: '#f8fafc', border: `1px solid ${BORDER}`, borderRadius: 8, padding: '10px 12px' }}>
+                        <p style={{ fontSize: 12, color: T1, lineHeight: 1.65, margin: 0 }}>{activeDocEv.action}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scenario impact */}
+                  {activeDocEv.impact && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <div style={{ width: 18, height: 18, borderRadius: 5, background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <TrendingUp size={10} color="#16a34a" />
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Scenario Impact</span>
+                      </div>
+                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 12px' }}>
+                        <p style={{ fontSize: 12, color: '#15803d', lineHeight: 1.65, margin: 0, fontWeight: 500 }}>{activeDocEv.impact}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Divider */}
+                  <div style={{ height: 1, background: BORDER, marginBottom: 12 }} />
+
+                  {/* Recent events feed */}
+                  <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Recent Dock Events</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {DOCK_EVENTS.slice(1, 5).map(ev => {
+                      const dot = ev.type === 'decision' ? CYAN : ev.type === 'alert' ? RED : ev.type === 'success' ? GREEN : '#3b82f6';
+                      return (
+                        <div key={ev.time} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 9px', background: PAGE, borderRadius: 7, border: `1px solid ${BORDER}` }}>
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: dot, marginTop: 4, flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 9, color: T3, fontWeight: 600, marginBottom: 1 }}>{ev.time}</div>
+                            <div style={{ fontSize: 11, color: T1, lineHeight: 1.4 }}>{ev.msg}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {dockPhase === 'baseline' && (
+                    <button onClick={handleRunDock} disabled={dockRunning}
+                      style={{ marginTop: 14, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 0', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', opacity: dockRunning ? 0.7 : 1 }}>
+                      <Play size={11} /> {dockRunning ? 'Optimising…' : 'Run AI Optimisation'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Dock Timeline (collapsible) */}
+          {showTimeline && (
+            <div style={{ background: PAGE, borderTop: `1px solid ${BORDER}`, padding: '14px 20px', flexShrink: 0, maxHeight: 340, overflowY: 'auto' }}>
+              <DockTimeline phase={dockPhase} />
+            </div>
+          )}
+
+          {/* Dock KPI strip */}
+          <div style={{ flexShrink: 0, background: '#0f172a', borderTop: '1px solid #1e293b', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, marginRight: 8 }}>
+              <Zap size={12} color="#fbbf24" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24', whiteSpace: 'nowrap' }}>Dock KPIs</span>
+              <span style={{ fontSize: 10, color: '#64748b' }}>{dockPhase === 'optimised' ? '· AI optimised' : '· baseline'}</span>
+            </div>
+            <div style={{ width: 1, height: 32, background: '#1e293b', flexShrink: 0 }} />
+            <div style={{ display: 'flex', gap: 6, flex: 1, overflow: 'hidden' }}>
+              {dockKPIs.map(k => {
+                const delta  = k.after - k.before;
+                const isGood = k.good ? delta >= 0 : delta <= 0;
+                const show   = dockPhase === 'optimised';
+                return (
+                  <div key={k.label} style={{ flex: 1, minWidth: 0, background: '#1e293b', borderRadius: 8, padding: '6px 10px', border: `1px solid ${show ? '#0c4a6e' : '#334155'}`, transition: 'border-color 0.3s' }}>
+                    <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 12, color: show ? '#475569' : '#94a3b8', textDecoration: show ? 'line-through' : 'none', transition: 'all 0.3s' }}>{k.before}{k.unit}</span>
+                      {show && <>
+                        <span style={{ fontSize: 9, color: '#334155' }}>→</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: '#f1f5f9' }}>{k.after}{k.unit}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: isGood ? '#22c55e' : '#f87171', background: isGood ? '#14532d' : '#7f1d1d', borderRadius: 4, padding: '1px 5px' }}>
                           {delta > 0 ? '+' : ''}{delta}{k.unit}
                         </span>
-                      )}
+                      </>}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ── TAB: Load Planner ── */}
-        {activeTab === 'truck' && (
+      {/* ── LOAD PLANNER: truck interior view ── */}
+      {activeTab === 'load' && (
+        <div style={{ flex: 1, overflowY: 'auto', background: PAGE }}>
           <div style={{ padding: '24px 28px 36px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
               <div>
                 <h2 style={{ fontSize: 17, fontWeight: 800, color: T1, margin: '0 0 4px', letterSpacing: '-0.01em' }}>Truck Load Planner</h2>
                 <p style={{ fontSize: 12, color: T2, margin: 0 }}>
                   Looking into the back of the trailer.
                   <strong style={{ color: RED }}> Before:</strong> random loading — large gaps visible.
-                  <strong style={{ color: '#0891b2' }}> After AI:</strong> large boxes floor-first, medium, then small fills every gap. Drag to rotate · scroll to zoom.
+                  <strong style={{ color: CYAN }}> After AI:</strong> large boxes floor-first, medium, then small fills every gap. Drag to rotate · scroll to zoom.
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 20 }}>
-                {loadMode === 'baseline' ? (
-                  <button onClick={handleOptimisePacking} disabled={loadAnimating}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', opacity: loadAnimating ? 0.7 : 1 }}>
-                    <Zap size={12} />
-                    {loadAnimating ? 'Packing…' : 'Apply AI Packing'}
-                  </button>
-                ) : (
-                  <>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: GREEN, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 12px' }}>
-                      <CheckCircle size={11} /> Optimised Packing
-                    </span>
-                    <button onClick={handleResetPacking}
-                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: PAGE, color: T2, border: `1px solid ${BORDER}` }}>
-                      <RotateCcw size={11} /> Reset
-                    </button>
-                  </>
-                )}
+            </div>
+
+            {/* Load Planner KPI strip */}
+            <div style={{ background: '#0f172a', borderRadius: 12, padding: '14px 18px', marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+                <Zap size={12} color="#fbbf24" />
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>KPI Impact — Load Optimisation</span>
+                {loadMode === 'optimised'
+                  ? <span style={{ fontSize: 9, color: '#22c55e', background: '#052e16', border: '1px solid #14532d', borderRadius: 4, padding: '1px 7px', fontWeight: 700 }}>AI packing applied</span>
+                  : <span style={{ fontSize: 9, color: '#64748b' }}>· apply AI packing to see improvement</span>}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+                {[
+                  { label: 'Trailer Fill Rate', before: '72%',    after: '94%',    delta: '+22%'   },
+                  { label: 'Load Time',          before: '28 min', after: '19 min', delta: '−9 min' },
+                  { label: 'Damage Risk',        before: 'HIGH',   after: 'LOW',    delta: '↓ 85%'  },
+                  { label: 'Space Utilised',     before: '72%',    after: '94%',    delta: '+22%'   },
+                  { label: 'Weight Compliance',  before: '0%',     after: '100%',   delta: '+100%'  },
+                ].map(k => {
+                  const show = loadMode === 'optimised';
+                  return (
+                    <div key={k.label} style={{ background: '#1e293b', borderRadius: 8, padding: '10px 12px', border: `1px solid ${show ? '#0c4a6e' : '#334155'}`, transition: 'border-color 0.3s' }}>
+                      <div style={{ fontSize: 9, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{k.label}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 12, color: show ? '#475569' : '#94a3b8', textDecoration: show ? 'line-through' : 'none', transition: 'all 0.3s' }}>{k.before}</span>
+                        {show && <>
+                          <span style={{ fontSize: 9, color: '#334155' }}>→</span>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{k.after}</span>
+                        </>}
+                      </div>
+                      {show && <span style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', background: '#14532d', borderRadius: 4, padding: '1px 6px', marginTop: 4, display: 'inline-block' }}>{k.delta}</span>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* 3D truck interior — single viewport, switches between modes */}
-            <div style={{
-              background: '#0f172a', border: `1px solid ${loadMode === 'optimised' ? '#164e63' : '#1e293b'}`,
-              borderRadius: 14, overflow: 'hidden', marginBottom: 18, boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-            }}>
-              <TruckInterior3D
-                mode={loadMode}
-                animating={loadAnimating}
-                height={460}
-              />
+            {/* 3D truck interior */}
+            <div style={{ background: '#0f172a', border: `1px solid ${loadMode === 'optimised' ? '#164e63' : '#1e293b'}`, borderRadius: 14, overflow: 'hidden', marginBottom: 18, boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}>
+              <TruckInterior3D mode={loadMode} animating={loadAnimating} height={400} />
             </div>
 
-            {/* Load sequence info */}
+            {/* Load sequence cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '16px 18px' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: RED, marginBottom: 10 }}>Before — Baseline Load Sequence</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {[
-                    { step: 1, label: 'Small boxes (SKU-C7)', size: 'SMALL', weight: '96 kg', note: 'loaded first — crushed by heavier items later' },
-                    { step: 2, label: 'Large boxes (SKU-A1)', size: 'LARGE', weight: '420 kg', note: 'heavy items stacked on top of small — damage risk' },
-                    { step: 3, label: 'Medium boxes (SKU-B3)', size: 'MED',   weight: '280 kg', note: 'gaps left in trailer — 28% wasted space' },
-                  ].map(({ step, label, size, weight, note }) => (
+                    { step: 1, label: 'Small boxes (SKU-C7)',  note: 'loaded first — crushed by heavier items later' },
+                    { step: 2, label: 'Large boxes (SKU-A1)',  note: 'heavy items stacked on top of small — damage risk' },
+                    { step: 3, label: 'Medium boxes (SKU-B3)', note: 'gaps left in trailer — 28% wasted space' },
+                  ].map(({ step, label, note }) => (
                     <div key={step} style={{ display: 'flex', gap: 10, padding: '8px 10px', background: '#fff', borderRadius: 7, border: '1px solid #fecaca' }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: RED, minWidth: 16 }}>{step}.</span>
                       <div>
@@ -2288,20 +2684,19 @@ function ADSimulationView({ setAdSubView }: { setAdSubView: (v: ADSubView) => vo
                   ))}
                 </div>
               </div>
-
               <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 12, padding: '16px 18px' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#0891b2', marginBottom: 10 }}>After — AI Optimised Load Sequence</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: CYAN, marginBottom: 10 }}>After — AI Optimised Load Sequence</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {[
-                    { step: 1, label: 'Large boxes (SKU-A1)',  size: 'LARGE', weight: '420 kg', note: 'floor-first — maximum stability base layer' },
-                    { step: 2, label: 'Medium boxes (SKU-B3)', size: 'MED',   weight: '280 kg', note: 'stacked on large — fills mid-height space evenly' },
-                    { step: 3, label: 'Small boxes (SKU-C7)',  size: 'SMALL', weight: '96 kg',  note: 'top layer + gap fill — 100% trailer utilisation (AI optimised)' },
+                    { step: 1, label: 'Large boxes (SKU-A1)',  note: 'floor-first — maximum stability base layer' },
+                    { step: 2, label: 'Medium boxes (SKU-B3)', note: 'stacked on large — fills mid-height space evenly' },
+                    { step: 3, label: 'Small boxes (SKU-C7)',  note: 'top layer + gap fill — 100% trailer utilisation' },
                   ].map(({ step, label, note }) => (
                     <div key={step} style={{ display: 'flex', gap: 10, padding: '8px 10px', background: '#fff', borderRadius: 7, border: '1px solid #a5f3fc' }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#0891b2', minWidth: 16 }}>{step}.</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: CYAN, minWidth: 16 }}>{step}.</span>
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 600, color: T1 }}>{label}</div>
-                        <div style={{ fontSize: 10, color: '#0891b2' }}>{note}</div>
+                        <div style={{ fontSize: 10, color: CYAN }}>{note}</div>
                       </div>
                     </div>
                   ))}
@@ -2309,7 +2704,246 @@ function ADSimulationView({ setAdSubView }: { setAdSubView: (v: ADSubView) => vo
               </div>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Autonomous Dock — KPI Impact View ────────────────────────────────────────
+function ADKPIImpactView({ dockPhase }: { dockPhase: 'baseline' | 'optimised' }) {
+  const CYAN  = AD_COLOR;
+  const isOpt = dockPhase === 'optimised';
+  const [expandedEv, setExpandedEv] = useState<string | null>(null);
+
+  const dockKPIs = [
+    {
+      title: 'Truck Turn Time',
+      before: `${DOCK_BASELINE.turnTimeMin} min`, after: `${DOCK_OPTIMISED.turnTimeMin} min`,
+      delta: `-${DOCK_BASELINE.turnTimeMin - DOCK_OPTIMISED.turnTimeMin} min`,
+      pct:   `-${(((DOCK_BASELINE.turnTimeMin - DOCK_OPTIMISED.turnTimeMin) / DOCK_BASELINE.turnTimeMin) * 100).toFixed(0)}%`,
+      unit: 'avg dock turn time', Icon: Timer,       color: '#0891b2', bg: '#ecfeff', good: true,
+    },
+    {
+      title: 'Dock Utilization',
+      before: `${DOCK_BASELINE.docksUtilised} / 6`, after: `${DOCK_OPTIMISED.docksUtilised} / 6`,
+      delta: `+${DOCK_OPTIMISED.docksUtilised - DOCK_BASELINE.docksUtilised} docks`,
+      pct:   `+${(((DOCK_OPTIMISED.docksUtilised - DOCK_BASELINE.docksUtilised) / DOCK_BASELINE.docksUtilised) * 100).toFixed(0)}%`,
+      unit: 'simultaneous docks active', Icon: Truck,  color: '#16a34a', bg: '#f0fdf4', good: true,
+    },
+    {
+      title: 'Staging Congestion',
+      before: `${DOCK_BASELINE.congestionScore}`, after: `${DOCK_OPTIMISED.congestionScore}`,
+      delta: `-${DOCK_BASELINE.congestionScore - DOCK_OPTIMISED.congestionScore} pallets`,
+      pct:   `-${(((DOCK_BASELINE.congestionScore - DOCK_OPTIMISED.congestionScore) / DOCK_BASELINE.congestionScore) * 100).toFixed(0)}%`,
+      unit: 'pallets queued in staging', Icon: Package, color: '#d97706', bg: '#fffbeb', good: true,
+    },
+    {
+      title: 'Avg Path Distance',
+      before: '31 m', after: '18 m',
+      delta: '−13 m',
+      pct:   '−42%',
+      unit: 'truck to storage zone', Icon: GitBranch, color: '#8b5cf6', bg: '#f5f3ff', good: true,
+    },
+    {
+      title: 'On-Time Departures',
+      before: '61%', after: '94%',
+      delta: '+33 pp',
+      pct:   '+54%',
+      unit: 'trucks departing on schedule', Icon: CheckCircle, color: '#1d4ed8', bg: '#eff6ff', good: true,
+    },
+    {
+      title: 'Missed Deadlines',
+      before: String(DOCK_BASELINE.missedDeadlines), after: String(DOCK_OPTIMISED.missedDeadlines),
+      delta: `-${DOCK_BASELINE.missedDeadlines}`,
+      pct:   '−100%',
+      unit: 'per shift', Icon: AlertTriangle, color: '#dc2626', bg: '#fef2f2', good: true,
+    },
+  ];
+
+  const loadKPIs = [
+    { title: 'Trailer Fill Rate', before: '72%',    after: '94%',    delta: '+22%',    pct: '+31%',   unit: 'cubic utilisation',       Icon: Package,     color: '#0891b2', bg: '#ecfeff' },
+    { title: 'Load Time',         before: '28 min', after: '19 min', delta: '−9 min',  pct: '−32%',   unit: 'avg per trailer',         Icon: Timer,       color: '#16a34a', bg: '#f0fdf4' },
+    { title: 'Damage Risk',       before: 'HIGH',   after: 'LOW',    delta: '↓ 85%',   pct: '−85%',   unit: 'cargo damage incidents',  Icon: AlertTriangle,color: '#d97706', bg: '#fffbeb' },
+    { title: 'Space Utilised',    before: '72%',    after: '94%',    delta: '+22%',    pct: '+31%',   unit: 'volumetric efficiency',   Icon: Layers,      color: '#8b5cf6', bg: '#f5f3ff' },
+    { title: 'Weight Compliance', before: '0%',     after: '100%',   delta: '+100%',   pct: '+100%',  unit: 'axle weight compliance',  Icon: CheckCircle, color: '#1d4ed8', bg: '#eff6ff' },
+  ];
+
+  const improvements = [
+    {
+      id: 'dock-routing',
+      time: '13:52',
+      title: 'Truck T-103 routed to optimal dock via zone-affinity matching',
+      description: 'T-103 (Old Dominion, 44 pallets — Zone A high-velocity SKUs) was auto-assigned to Recv-1 based on minimum path distance to Zone A storage (18 m vs. 31 m at Recv-3). Turn time reduced by 13 minutes.',
+      detail: 'Zone-affinity routing ensures each inbound truck docks closest to its destination storage zone, eliminating cross-warehouse pallet travel and reducing forklift cycle time by up to 42%.',
+    },
+    {
+      id: 'congestion-preempt',
+      time: '13:48',
+      title: 'S-3 activated proactively to pre-empt staging congestion',
+      description: 'AI detected rising staging congestion at S-1 / S-2 (8 pallets queued, forklift queue blocked). S-3 was automatically activated and Wave W-08 re-routed 12 minutes before a predicted jam.',
+      detail: 'Predictive congestion scoring runs every 90 seconds. When staging pallet count exceeds threshold on adjacent docks, the system pre-activates idle bays and redistributes wave assignments.',
+    },
+    {
+      id: 'load-sequence',
+      time: '13:41',
+      title: 'Wave W-07 load sequence reordered: large → medium → small',
+      description: 'AI detected that SKU-C7 (small, 96 kg) was placed first in trailer TRL-6615. Sequence was corrected to large-first (SKU-A1, 420 kg) before loading started, raising projected fill rate from 71% to 94%.',
+      detail: 'The size-stratified loading algorithm places the heaviest, largest items as the base layer, medium items as the structural mid-layer, and small items as gap-fillers. This eliminates structural voids and prevents crush damage.',
+    },
+    {
+      id: 'rebalance',
+      time: '12:33',
+      title: 'Dynamic dock rebalance: T-104 rerouted R-3 → R-1, saving 13 m',
+      description: 'When T-102 completed unloading at R-2 ahead of schedule, the AI immediately freed R-1 for T-104 (closer path), reducing its storage walk distance from 31 m to 18 m.',
+      detail: 'Real-time dock rebalancing runs on every truck departure event. The optimizer re-evaluates all queued trucks against current dock availability and path distances, issuing re-assignments within 2 seconds.',
+    },
+  ];
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: PAGE, padding: '24px 28px 32px' }}>
+
+        {/* Banner — always visible, but headline/stat reflects phase */}
+        <div style={{ background: '#0f172a', borderRadius: 12, padding: '18px 22px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: '#1e293b', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Bot size={22} color={CYAN} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: CYAN, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>Autonomous Dock AI — Full Impact Analysis</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.01em' }}>Dock Routing + Load Optimisation</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2, lineHeight: 1.5 }}>Combining zone-affinity truck routing with AI-sequenced load packing across all 6 docks.</div>
+          </div>
+          {isOpt ? (
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3 }}>Turn-Time Reduction</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#22c55e', letterSpacing: '-0.03em' }}>−{DOCK_BASELINE.turnTimeMin - DOCK_OPTIMISED.turnTimeMin} min</div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>per truck avg</div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'right', flexShrink: 0, background: '#1e293b', borderRadius: 10, padding: '10px 14px', border: '1px solid #334155' }}>
+              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>Avg Turn Time</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.02em' }}>{DOCK_BASELINE.turnTimeMin} min</div>
+              <div style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>baseline</div>
+            </div>
+          )}
+        </div>
+
+        {/* No-optimisation prompt */}
+        {!isOpt && (
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '14px 18px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Zap size={16} color="#d97706" />
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 2 }}>AI optimisation not yet applied</div>
+              <div style={{ fontSize: 12, color: '#78350f' }}>Go to <strong>Visual Simulation</strong> and click <strong>Run AI Optimisation</strong> to unlock the before/after comparison and key AI decisions.</div>
+            </div>
+          </div>
         )}
+
+        {/* Section: Dock Operations KPIs */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+          {isOpt ? 'Dock Operations — Baseline vs. AI Optimised' : 'Dock Operations — Current Baseline'}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 22 }}>
+          {dockKPIs.map(kpi => (
+            <div key={kpi.title} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: '16px 18px', boxShadow: CARDSH }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: kpi.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <kpi.Icon size={13} color={kpi.color} />
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1.2 }}>{kpi.title}</div>
+              </div>
+              <div style={{ marginBottom: isOpt ? 4 : 0 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: T3, letterSpacing: '0.06em', marginBottom: 2 }}>BASELINE</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: isOpt ? '#9ca3af' : T1, textDecoration: isOpt ? 'line-through' : 'none', letterSpacing: '-0.02em', lineHeight: 1 }}>{kpi.before}</div>
+                <div style={{ fontSize: 10, color: T3, marginTop: 2 }}>{kpi.unit}</div>
+              </div>
+              {isOpt && (
+                <>
+                  <div style={{ fontSize: 18, color: '#d1d5db', margin: '8px 0' }}>↓</div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: GREEN, letterSpacing: '0.06em', marginBottom: 2 }}>OPTIMISED</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: T1, letterSpacing: '-0.03em', lineHeight: 1 }}>{kpi.after}</div>
+                    <div style={{ fontSize: 10, color: T2, marginTop: 2 }}>{kpi.unit}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#22c55e', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, padding: '3px 8px' }}>{kpi.delta}</span>
+                    <span style={{ fontSize: 10, color: T3, fontWeight: 600 }}>{kpi.pct}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Section: Load Optimisation KPIs */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+          {isOpt ? 'Load Optimisation — Baseline vs. AI Packing' : 'Load Optimisation — Current Baseline'}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
+          {loadKPIs.map(kpi => (
+            <div key={kpi.title} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: '16px 18px', boxShadow: CARDSH }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: kpi.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <kpi.Icon size={13} color={kpi.color} />
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1.2 }}>{kpi.title}</div>
+              </div>
+              <div style={{ marginBottom: isOpt ? 4 : 0 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: T3, letterSpacing: '0.06em', marginBottom: 2 }}>BASELINE</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: isOpt ? '#9ca3af' : T1, textDecoration: isOpt ? 'line-through' : 'none', letterSpacing: '-0.02em', lineHeight: 1 }}>{kpi.before}</div>
+              </div>
+              {isOpt && (
+                <>
+                  <div style={{ fontSize: 18, color: '#d1d5db', margin: '8px 0' }}>↓</div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: GREEN, letterSpacing: '0.06em', marginBottom: 2 }}>OPTIMISED</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: T1, letterSpacing: '-0.03em', lineHeight: 1 }}>{kpi.after}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#22c55e', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, padding: '3px 8px' }}>{kpi.delta}</span>
+                    <span style={{ fontSize: 10, color: T3, fontWeight: 600 }}>{kpi.pct}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Section: Key improvement decisions — only after optimisation */}
+        {isOpt && <>
+        <div style={{ fontSize: 11, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+          Key AI Decisions
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {improvements.map(ev => {
+            const isOpen = expandedEv === ev.id;
+            return (
+              <div key={ev.id} style={{ background: CARD, border: '1px solid #a5f3fc', borderRadius: 10, overflow: 'hidden', boxShadow: CARDSH }}>
+                <button
+                  onClick={() => setExpandedEv(isOpen ? null : ev.id)}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <div style={{ width: 38, height: 38, borderRadius: 9, background: '#ecfeff', border: '1px solid #a5f3fc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Bot size={16} color={CYAN} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: CYAN, marginBottom: 2 }}>{ev.time} — AI Decision</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T1 }}>{ev.title}</div>
+                  </div>
+                  <ChevronRight size={14} color={T3} style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
+                </button>
+                {isOpen && (
+                  <div style={{ padding: '0 18px 18px', borderTop: '1px solid #ecfeff' }}>
+                    <p style={{ fontSize: 13, color: T1, lineHeight: 1.65, margin: '14px 0 10px', fontWeight: 500 }}>{ev.description}</p>
+                    <p style={{ fontSize: 12, color: T2, lineHeight: 1.7, margin: 0 }}>{ev.detail}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        </>}
       </div>
     </div>
   );
@@ -2317,11 +2951,13 @@ function ADSimulationView({ setAdSubView }: { setAdSubView: (v: ADSubView) => vo
 
 // ── Autonomous Dock — root router ─────────────────────────────────────────────
 function AutonomousDockView({ adSubView, setAdSubView }: { adSubView: ADSubView; setAdSubView: (v: ADSubView) => void }) {
+  const [dockPhase, setDockPhase] = useState<'baseline' | 'optimised'>('baseline');
   return (
     <>
       {adSubView === 'live-ops'     && <ADLiveOpsView     setAdSubView={setAdSubView} />}
       {adSubView === 'ai-decisions' && <ADAIDecisionsView setAdSubView={setAdSubView} />}
-      {adSubView === 'simulation'   && <ADSimulationView  setAdSubView={setAdSubView} />}
+      {adSubView === 'simulation'   && <ADSimulationView  setAdSubView={setAdSubView} dockPhase={dockPhase} setDockPhase={setDockPhase} />}
+      {adSubView === 'kpi-impact'   && <ADKPIImpactView dockPhase={dockPhase} />}
     </>
   );
 }
@@ -2398,6 +3034,14 @@ const WAREHOUSES: WarehouseNode[] = [
     isReal: false,
   },
 ];
+
+// Geographic coordinates for each warehouse (real Midwest city locations)
+const WH_GEO: Record<string, { lon: number; lat: number; city: string; state: string }> = {
+  'wh-1': { lon: 87.63, lat: 41.88, city: 'Chicago',      state: 'IL' },
+  'wh-2': { lon: 86.16, lat: 39.77, city: 'Indianapolis', state: 'IN' },
+  'wh-3': { lon: 82.99, lat: 39.96, city: 'Columbus',     state: 'OH' },
+  'wh-4': { lon: 87.91, lat: 43.04, city: 'Milwaukee',    state: 'WI' },
+};
 
 const STATUS_CFG: Record<WHStatus, { label: string; color: string; bg: string; dot: string }> = {
   live:     { label: 'LIVE',     color: '#15803d', bg: '#f0fdf4', dot: '#16a34a' },
@@ -3168,11 +3812,452 @@ function BuildTwinModal({ onClose, onCreated }: {
   );
 }
 
+// ── Midwest Operations Map ────────────────────────────────────────────────────
+const GEO_URL = statesGeo;
+
+const MIDWEST_IDS = new Set(['27','55','26','19','17','18','39','29']);
+
+function MidwestMapView({
+  warehouses,
+  selected,
+  onSelect,
+  activeScenarioId,
+}: {
+  warehouses: WarehouseNode[];
+  selected: string | null;
+  onSelect: (id: string | null) => void;
+  activeScenarioId: string | null;
+}) {
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const activeSc = NETWORK_SCENARIOS.find(s => s.id === activeScenarioId);
+  const isScAffected = (whId: string) => !!(activeSc && (
+    (activeSc.id === 'austin-outage'  && whId === 'wh-1') ||
+    (activeSc.id === 'chicago-golive' && (whId === 'wh-1' || whId === 'wh-2')) ||
+    (activeSc.id === 'demand-surge'   && whId === 'wh-1')
+  ));
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  const STATUS_PIN: Record<WHStatus, { fill: string; glow: string }> = {
+    live:     { fill: '#1d4ed8', glow: '#3b82f6' },
+    building: { fill: '#d97706', glow: '#f59e0b' },
+    offline:  { fill: '#dc2626', glow: '#ef4444' },
+    planned:  { fill: '#64748b', glow: '#94a3b8' },
+  };
+
+  const hoveredWH  = hovered ? warehouses.find(w => w.id === hovered) : null;
+  const hoveredGeo = hovered ? WH_GEO[hovered] : null;
+
+  return (
+    <div ref={containerRef}
+      style={{ position: 'relative', background: '#b8d4e8', border: `1px solid ${BORDER}`, borderRadius: 14, overflow: 'hidden', boxShadow: CARDSH }}
+      onMouseMove={handleMouseMove}>
+
+      {/* Toolbar */}
+      <div style={{ padding: '11px 20px', borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: CARD }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Network size={14} color="#1d4ed8" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: T1 }}>Midwest Operations Network</span>
+          <span style={{ fontSize: 10, color: T3 }}>· hover for quick info · click pin to inspect</span>
+        </div>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          {([['#1d4ed8','Live'],['#d97706','Building'],['#dc2626','Offline'],['#64748b','Planned']] as [string,string][]).map(([color, label]) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
+              <span style={{ fontSize: 9, color: T3, fontWeight: 600 }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Real geographic map via react-simple-maps + us-atlas TopoJSON */}
+      <ComposableMap
+        projection="geoMercator"
+        projectionConfig={{ scale: 1600, center: [-88.5, 43.0] }}
+        width={860}
+        height={520}
+        style={{ width: '100%', display: 'block' }}
+      >
+        <defs>
+          <marker id="map-arrow-blue" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#3b82f6" opacity={0.75} />
+          </marker>
+          <marker id="map-arrow-grey" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#94a3b8" opacity={0.6} />
+          </marker>
+        </defs>
+
+        {/* All states grey, white borders */}
+        <Geographies geography={GEO_URL}>
+          {({ geographies }) => geographies.map(geo => (
+            <Geography
+              key={geo.rsmKey}
+              geography={geo}
+              fill={MIDWEST_IDS.has(geo.id) ? '#c8d4dc' : '#b0bec8'}
+              stroke="#ffffff"
+              strokeWidth={0.8}
+              style={{
+                default: { outline: 'none' },
+                hover:   { outline: 'none' },
+                pressed: { outline: 'none' },
+              }}
+            />
+          ))}
+        </Geographies>
+
+        {/* State name labels */}
+        {([
+          [-89.0, 46.5,  'Minnesota',  '27'],
+          [-89.8, 44.5,  'Wisconsin',  '55'],
+          [-84.5, 44.0,  'Michigan',   '26'],
+          [-93.5, 42.0,  'Iowa',       '19'],
+          [-89.2, 40.0,  'Illinois',   '17'],
+          [-86.2, 40.0,  'Indiana',    '18'],
+          [-82.5, 40.2,  'Ohio',       '39'],
+          [-92.5, 38.5,  'Missouri',   '29'],
+          [-85.5, 37.8,  'Kentucky',   '21'],
+          [-86.8, 32.8,  'Alabama',    '01'],
+        ] as [number, number, string, string][])
+          .filter(([,,, id]) => MIDWEST_IDS.has(id) || ['21'].includes(id))
+          .map(([lon, lat, name]) => (
+            <Annotation key={name} subject={[lon, lat]} dx={0} dy={0} connectorProps={{}}>
+              <text textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight={700} fill="#1e293b" style={{ pointerEvents: 'none' }}>{name}</text>
+            </Annotation>
+          ))}
+
+        {/* Reference city dots */}
+        {([
+          [-93.27, 44.98, 'Minneapolis'],
+          [-90.20, 38.63, 'St. Louis'],
+          [-83.05, 42.33, 'Detroit'],
+          [-84.51, 39.10, 'Cincinnati'],
+          [-81.70, 41.50, 'Cleveland'],
+          [-87.65, 44.52, 'Green Bay'],
+          [-93.62, 41.60, 'Des Moines'],
+        ] as [number, number, string][]).map(([lon, lat, name]) => (
+          <Marker key={name} coordinates={[lon, lat]}>
+            <circle r={4} fill="#1a1a2e" stroke="white" strokeWidth={1.5} style={{ pointerEvents: 'none' }} />
+            <text x={8} y={4} fontSize={9} fill="#1a1a2e" fontWeight={700} style={{ pointerEvents: 'none' }}>{name}</text>
+          </Marker>
+        ))}
+
+        {/* Warehouse pins */}
+        {warehouses.map(wh => {
+          const geo = WH_GEO[wh.id];
+          if (!geo) return null;
+          const cfg = STATUS_PIN[wh.status];
+          const isSelected = selected === wh.id;
+          const isHov = hovered === wh.id;
+          const scAff = isScAffected(wh.id);
+          const scColor = activeSc?.tagColor ?? cfg.fill;
+
+          return (
+            <Marker key={wh.id} coordinates={[-geo.lon, geo.lat]}>
+              <g
+                onClick={() => onSelect(isSelected ? null : wh.id)}
+                onMouseEnter={() => setHovered(wh.id)}
+                onMouseLeave={() => setHovered(null)}
+                style={{ cursor: 'pointer' }}>
+                {scAff && <circle cy={-8} r={24} fill={scColor} opacity={0.2} />}
+                {(isSelected || isHov) && (
+                  <circle cy={-8} r={19} fill="none" stroke={cfg.fill} strokeWidth={2.5} opacity={0.45} />
+                )}
+                <ellipse cy={8} rx={7} ry={3} fill="rgba(0,0,0,0.22)" />
+                <path d="M 0,10 L -11,-4 A 11,11 0 1,1 11,-4 Z" fill={cfg.fill} />
+                <circle cy={-8} r={5} fill="rgba(255,255,255,0.90)" />
+                {wh.status === 'live' && (
+                  <circle cy={-8} r={15} fill="none" stroke={cfg.fill} strokeWidth={1.5} opacity={0.35} />
+                )}
+                {wh.alerts > 0 && (
+                  <g>
+                    <circle cx={11} cy={-18} r={7} fill="#ef4444" />
+                    <text x={11} y={-14} textAnchor="middle" fontSize={7} fontWeight={800} fill="#fff">{wh.alerts}</text>
+                  </g>
+                )}
+                <rect x={-30} y={14} width={60} height={15} rx={3} fill="rgba(10,18,36,0.75)" />
+                <text y={24} textAnchor="middle" fontSize={7.5} fontWeight={700} fill="#e2e8f0" style={{ pointerEvents: 'none' }}>
+                  {geo.city}, {geo.state}
+                </text>
+              </g>
+            </Marker>
+          );
+        })}
+
+        {/* Compass rose */}
+        <Marker coordinates={[-80.5, 48.2]}>
+          <g>
+            <circle r={16} fill="rgba(255,255,255,0.82)" stroke="#b8c8d8" strokeWidth={1} />
+            <path d="M 0,-13 L 3.5,-6 L 0,-8 L -3.5,-6 Z" fill="#1d4ed8" />
+            <path d="M 0,13 L 3.5,6 L 0,8 L -3.5,6 Z" fill="#94a3b8" />
+            <path d="M -13,0 L -6,3.5 L -8,0 L -6,-3.5 Z" fill="#94a3b8" />
+            <path d="M 13,0 L 6,3.5 L 8,0 L 6,-3.5 Z" fill="#94a3b8" />
+            <text y={-16} textAnchor="middle" fontSize={7} fontWeight={800} fill="#1d4ed8">N</text>
+          </g>
+        </Marker>
+      </ComposableMap>
+
+      {/* Hover Tooltip */}
+      {hoveredWH && hoveredGeo && (
+        <div style={{
+          position: 'absolute',
+          left: Math.min(mousePos.x + 18, 600),
+          top: Math.max(mousePos.y - 110, 8),
+          background: 'rgba(8,14,28,0.93)',
+          border: '1px solid rgba(255,255,255,0.13)',
+          borderRadius: 11,
+          padding: '13px 17px',
+          pointerEvents: 'none',
+          zIndex: 200,
+          minWidth: 210,
+          backdropFilter: 'blur(14px)',
+          boxShadow: '0 10px 36px rgba(0,0,0,0.40)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: STATUS_PIN[hoveredWH.status].fill, flexShrink: 0 }} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{hoveredWH.name}</span>
+            <span style={{ fontSize: 8, fontWeight: 800, color: STATUS_PIN[hoveredWH.status].fill, marginLeft: 'auto',
+              background: `${STATUS_PIN[hoveredWH.status].fill}20`, borderRadius: 4, padding: '2px 7px' }}>
+              {STATUS_CFG[hoveredWH.status].label}
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 11 }}>
+            {hoveredGeo.city}, {hoveredGeo.state}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 18px' }}>
+            {([
+              ['Size',   `${(hoveredWH.sqft / 1000).toFixed(0)}K sq ft`],
+              ['Docks',  `${hoveredWH.docks} bays`],
+              ...(hoveredWH.status === 'live'
+                ? [['Throughput', `${hoveredWH.throughput.toLocaleString()} /hr`], ['Utilisation', `${hoveredWH.utilisation}%`]]
+                : [['Est. Go-Live', hoveredWH.status === 'building' ? 'Q3 2026' : '—'], ['Capacity', `${(hoveredWH.sqft/1000).toFixed(0)}K sq ft`]]),
+            ] as [string, string][]).map(([label, value]) => (
+              <div key={label}>
+                <div style={{ fontSize: 8, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1', marginTop: 2 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 9, color: '#475569' }}>
+            Click to open inspection panel →
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Warehouse Side Panel ──────────────────────────────────────────────────────
+const PANEL_SCENARIOS: Array<{
+  id: string;
+  label: string;
+  desc: string;
+  color: string;
+  icon: typeof Activity;
+}> = [
+  { id: 'austin-outage',  label: 'Simulate Site Outage',   desc: 'Full offline event — equipment or weather',    color: '#dc2626', icon: AlertTriangle },
+  { id: 'chicago-golive', label: 'Early WH-2 Go-Live',     desc: 'Bring WH-2 online at 60% to absorb volume',   color: '#16a34a', icon: Zap },
+  { id: 'demand-surge',   label: 'Demand Surge +40%',      desc: 'Peak season spike across the network',        color: '#d97706', icon: TrendingUp },
+];
+
+function WHSidePanel({
+  wh,
+  onClose,
+  onLaunchWarehouse,
+  onRunScenario,
+  activeScenarioId,
+}: {
+  wh: WarehouseNode;
+  onClose: () => void;
+  onLaunchWarehouse: () => void;
+  onRunScenario: (id: string) => void;
+  activeScenarioId: string | null;
+}) {
+  const geo  = WH_GEO[wh.id];
+  const scfg = STATUS_CFG[wh.status];
+  const isLive = wh.status === 'live';
+
+  const kpis = isLive
+    ? [
+        { label: 'Throughput',   value: `${wh.throughput.toLocaleString()}`, unit: 'cases/hr' },
+        { label: 'Utilisation',  value: `${wh.utilisation}%`,                unit: ''         },
+        { label: 'Active Docks', value: `${wh.docks}`,                       unit: 'docks'    },
+        { label: 'Floor Space',  value: `${(wh.sqft / 1000).toFixed(0)}K`,   unit: 'sq ft'    },
+        { label: 'Cost/Case',    value: `$${wh.costPerCase.toFixed(2)}`,      unit: '/case'    },
+        { label: 'Open Alerts',  value: `${wh.alerts}`,                       unit: 'alerts'   },
+      ]
+    : [
+        { label: 'Floor Space',  value: `${(wh.sqft / 1000).toFixed(0)}K`,   unit: 'sq ft'    },
+        { label: 'Planned Docks',value: `${wh.docks}`,                        unit: 'docks'    },
+        { label: 'Status',       value: scfg.label,                            unit: ''         },
+        { label: 'Throughput',   value: '—',                                   unit: ''         },
+        { label: 'Cost/Case',    value: '—',                                   unit: ''         },
+        { label: 'Open Alerts',  value: `${wh.alerts}`,                        unit: 'alerts'   },
+      ];
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, right: 0, bottom: 0,
+      width: 360, zIndex: 200,
+      display: 'flex', flexDirection: 'column',
+      background: CARD, borderLeft: `1px solid ${BORDER}`,
+      boxShadow: '-4px 0 24px rgba(0,0,0,0.10)',
+      animation: 'slideInRight 0.22s cubic-bezier(0.25,0.46,0.45,0.94)',
+    }}>
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
+        }
+      `}</style>
+
+      {/* Header */}
+      <div style={{
+        padding: '16px 20px 14px',
+        borderBottom: `1px solid ${BORDER}`,
+        display: 'flex', alignItems: 'flex-start', gap: 12,
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{
+              fontSize: 9, fontWeight: 800, letterSpacing: '0.08em',
+              color: scfg.color, background: scfg.bg,
+              border: `1px solid ${scfg.dot}44`,
+              borderRadius: 4, padding: '2px 6px',
+            }}>{scfg.label}</span>
+            {wh.alerts > 0 && (
+              <span style={{
+                fontSize: 9, fontWeight: 800,
+                background: '#fef2f2', color: '#dc2626',
+                border: '1px solid #fecaca',
+                borderRadius: 4, padding: '2px 6px',
+              }}>{wh.alerts} ALERT{wh.alerts > 1 ? 'S' : ''}</span>
+            )}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: T1, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            {wh.name}
+          </div>
+          {geo && (
+            <div style={{ fontSize: 11, color: T3, marginTop: 3, fontWeight: 500 }}>
+              {geo.city}, {geo.state}
+            </div>
+          )}
+        </div>
+        <button onClick={onClose} style={{
+          background: 'none', border: `1px solid ${BORDER}`,
+          borderRadius: 6, width: 28, height: 28, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: T3, flexShrink: 0, fontSize: 14,
+        }}>✕</button>
+      </div>
+
+      {/* Scrollable body */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+
+        {/* Open Warehouse button */}
+        {isLive && (
+          <button onClick={onLaunchWarehouse} style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            padding: '11px 0', borderRadius: 9, border: 'none', cursor: 'pointer',
+            background: '#1d4ed8', color: '#fff', fontSize: 12, fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(29,78,216,0.35)',
+            marginBottom: 20,
+          }}>
+            <Play size={11} fill="#fff" />
+            Open Warehouse
+          </button>
+        )}
+
+        {/* KPIs */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Site Metrics
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {kpis.map(({ label, value, unit }) => (
+              <div key={label} style={{
+                background: PAGE, border: `1px solid ${BORDER}`,
+                borderRadius: 8, padding: '10px 12px',
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 600, color: T3, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                  {label}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: T1, letterSpacing: '-0.02em' }}>{value}</span>
+                  {unit && <span style={{ fontSize: 9, color: T3, fontWeight: 500 }}>{unit}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Scenario quick-run */}
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Scenario Simulation
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {PANEL_SCENARIOS.map(sc => {
+              const Icon = sc.icon;
+              const isActive = activeScenarioId === sc.id;
+              return (
+                <div
+                  key={sc.id}
+                  onClick={() => onRunScenario(sc.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '11px 14px', borderRadius: 9, cursor: 'pointer',
+                    background: isActive ? `${sc.color}0d` : PAGE,
+                    border: `1.5px solid ${isActive ? sc.color + '55' : BORDER}`,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{
+                    width: 30, height: 30, borderRadius: 7, flexShrink: 0,
+                    background: `${sc.color}14`, border: `1px solid ${sc.color}30`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon size={13} color={sc.color} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: isActive ? sc.color : T1, lineHeight: 1.2 }}>
+                      {sc.label}
+                    </div>
+                    <div style={{ fontSize: 9, color: T3, marginTop: 2, lineHeight: 1.4 }}>
+                      {sc.desc}
+                    </div>
+                  </div>
+                  <ChevronRight size={12} color={isActive ? sc.color : T3} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        padding: '12px 20px',
+        borderTop: `1px solid ${BORDER}`,
+        fontSize: 10, color: T3, textAlign: 'center',
+      }}>
+        Click a scenario to run a network simulation
+      </div>
+    </div>
+  );
+}
+
 function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void }) {
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [showBuildModal, setShowBuildModal] = useState(false);
   const [newSite, setNewSite] = useState<{ name: string; location: string } | null>(null);
+  const [selectedWH, setSelectedWH] = useState<string | null>(null);
 
   function handleCreated(name: string, location: string) {
     setShowBuildModal(false);
@@ -3189,6 +4274,15 @@ function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void 
   }
 
   const scenarioResult = NETWORK_SCENARIOS.find(s => s.id === activeScenario) ?? null;
+  const selectedWHData = selectedWH ? WAREHOUSES.find(w => w.id === selectedWH) ?? null : null;
+
+  function handlePanelScenario(id: string) {
+    if (activeScenario === id) {
+      setActiveScenario(null);
+    } else {
+      runScenario(id);
+    }
+  }
 
   return (
     <div style={{
@@ -3237,40 +4331,13 @@ function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void 
 
       {/* Main content */}
       <div style={{ flex: 1, padding: '28px 28px', overflow: 'auto' }}>
-        {/* Section header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: T1, letterSpacing: '-0.02em' }}>
-              Warehouse Network
-            </h2>
-            <p style={{ margin: '3px 0 0', fontSize: 12, color: T2 }}>
-              4 sites · 1 live · Launch a warehouse to access full simulation
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {(['live', 'building', 'offline', 'planned'] as WHStatus[]).map(s => {
-              const cfg = STATUS_CFG[s];
-              const count = WAREHOUSES.filter(w => w.status === s).length;
-              return (
-                <div key={s} style={{
-                  display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-                  borderRadius: 6, background: CARD,
-                  border: `1px solid ${BORDER}`, fontSize: 10, fontWeight: 700, color: T2,
-                }}>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot, display: 'inline-block' }} />
-                  {count} {cfg.label}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Warehouse grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-          {WAREHOUSES.map(wh => (
-            <WarehouseCard key={wh.id} wh={wh} onLaunch={onLaunchWarehouse} />
-          ))}
-        </div>
+        {/* Midwest map */}
+        <MidwestMapView
+          warehouses={WAREHOUSES}
+          selected={selectedWH}
+          onSelect={setSelectedWH}
+          activeScenarioId={activeScenario}
+        />
 
         {/* Fleet + network summary strip */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
@@ -3435,6 +4502,17 @@ function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void 
         <BuildTwinModal
           onClose={() => setShowBuildModal(false)}
           onCreated={handleCreated}
+        />
+      )}
+
+      {/* Warehouse side panel */}
+      {selectedWHData && (
+        <WHSidePanel
+          wh={selectedWHData}
+          onClose={() => setSelectedWH(null)}
+          onLaunchWarehouse={onLaunchWarehouse}
+          onRunScenario={handlePanelScenario}
+          activeScenarioId={activeScenario}
         />
       )}
     </div>

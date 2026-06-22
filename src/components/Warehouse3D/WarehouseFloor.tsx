@@ -22,7 +22,13 @@ const RACK_D       = Z_STORAGE_N - Z_STORAGE_S;  // 30
 const BAY_SPACING  = 3.75;        // z between upright frames
 const BAY_FRAMES   = Math.round(RACK_D / BAY_SPACING) + 1;  // 9
 
-const RACK_ROWS: number[] = [-63, -59, -49, -45, -28, -22, 12, 17, 37, 42, 56, 60];
+// 10 racks, consistent spacing throughout:
+//   Zone A (-59,-49): 7.8-unit aisle   | back corridor 4.8 |
+//   Zone B (-42,-28): 11.8-unit aisle  | 12.8 cross | 12.8 center | 12.8 cross |
+//   Zone D (17,37):   17.8-unit aisle  | back corridor 5.8 |
+//   Zone E (45,56):   8.8-unit aisle
+// Center racks (-13,+2) split the gap evenly into three equal 12.8-unit corridors.
+const RACK_ROWS: number[] = [-59, -49, -42, -28, -13, 2, 17, 37, 45, 56];
 
 // Door / dock geometry
 export const RECV_DOORS = [-54, -15, 8];
@@ -37,13 +43,13 @@ export const DYNAMIC_SHELF_SLOTS: ShelfSlot[] = [
   { rackX: -59, bi: 1, li: 0 }, { rackX: -59, bi: 3, li: 0 }, { rackX: -59, bi: 5, li: 0 },
   { rackX: -49, bi: 1, li: 0 }, { rackX: -49, bi: 3, li: 0 }, { rackX: -49, bi: 5, li: 0 },
   // Zone B — aisle x=-38 — FL-3 outbound picks
-  { rackX: -45, bi: 1, li: 0 }, { rackX: -45, bi: 3, li: 0 }, { rackX: -45, bi: 5, li: 0 },
+  { rackX: -42, bi: 1, li: 0 }, { rackX: -42, bi: 3, li: 0 }, { rackX: -42, bi: 5, li: 0 },
   { rackX: -28, bi: 1, li: 0 }, { rackX: -28, bi: 3, li: 0 }, { rackX: -28, bi: 5, li: 0 },
   // Zone D — aisle x=+28 — FL-2 inbound deposits
   { rackX: 17,  bi: 1, li: 0 }, { rackX: 17,  bi: 3, li: 0 }, { rackX: 17,  bi: 5, li: 0 },
   { rackX: 37,  bi: 1, li: 0 }, { rackX: 37,  bi: 3, li: 0 }, { rackX: 37,  bi: 5, li: 0 },
   // Zone E — aisle x=+49 — FL-4 outbound picks
-  { rackX: 42,  bi: 1, li: 0 }, { rackX: 42,  bi: 3, li: 0 }, { rackX: 42,  bi: 5, li: 0 },
+  { rackX: 45,  bi: 1, li: 0 }, { rackX: 45,  bi: 3, li: 0 }, { rackX: 45,  bi: 5, li: 0 },
   { rackX: 56,  bi: 1, li: 0 }, { rackX: 56,  bi: 3, li: 0 }, { rackX: 56,  bi: 5, li: 0 },
 ];
 export function slotToWorldPos(slot: ShelfSlot): { x: number; y: number; z: number } {
@@ -103,8 +109,8 @@ function ZoneOverlays() {
       {/* ── Colored zone panels — rack storage zone z=-22 to +8 ─────── */}
       <ZonePanel cx={0}       cz={-30.5} width={152}  depth={17}  color="#1d4ed8" opacity={0.32} />
       <ZonePanel cx={-60}     cz={-7}    width={28}   depth={30}  color="#dc2626" opacity={0.32} />
-      <ZonePanel cx={-32.5}   cz={-7}    width={27}   depth={30}  color="#d97706" opacity={0.32} />
-      <ZonePanel cx={-2.5}    cz={-7}    width={33}   depth={30}  color="#16a34a" opacity={0.32} />
+      <ZonePanel cx={-32.5}   cz={-7}    width={27}   depth={30}  color="#f97316" opacity={0.32} />
+      <ZonePanel cx={-2.5}    cz={-7}    width={33}   depth={30}  color="#6366f1" opacity={0.32} />
       <ZonePanel cx={+26.25}  cz={-7}    width={24.5} depth={30}  color="#7c3aed" opacity={0.32} />
       <ZonePanel cx={+56.25}  cz={-7}    width={35.5} depth={30}  color="#0891b2" opacity={0.32} />
       <ZonePanel cx={0}       cz={23.5}  width={152}  depth={31}  color="#ca8a04" opacity={0.32} />
@@ -125,11 +131,11 @@ function ZoneOverlays() {
       <Text position={[-60, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#991b1b" anchorX="center" anchorY="middle" renderOrder={5}>ZONE A</Text>
       <Text position={[-60, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#dc2626" anchorX="center" anchorY="middle" renderOrder={5}>Far West</Text>
 
-      <Text position={[-32, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#92400e" anchorX="center" anchorY="middle" renderOrder={5}>ZONE B</Text>
-      <Text position={[-32, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#d97706" anchorX="center" anchorY="middle" renderOrder={5}>West Storage</Text>
+      <Text position={[-32, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#c2410c" anchorX="center" anchorY="middle" renderOrder={5}>ZONE B</Text>
+      <Text position={[-32, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#f97316" anchorX="center" anchorY="middle" renderOrder={5}>West Storage</Text>
 
-      <Text position={[-2,  0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#14532d" anchorX="center" anchorY="middle" renderOrder={5}>ZONE C</Text>
-      <Text position={[-2,  0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#16a34a" anchorX="center" anchorY="middle" renderOrder={5}>Center Storage</Text>
+      <Text position={[-2,  0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#4338ca" anchorX="center" anchorY="middle" renderOrder={5}>ZONE C</Text>
+      <Text position={[-2,  0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#6366f1" anchorX="center" anchorY="middle" renderOrder={5}>Center Storage</Text>
 
       <Text position={[+26, 0.05, -25]}  rotation={[-Math.PI/2,0,0]} fontSize={2.2} color="#4c1d95" anchorX="center" anchorY="middle" renderOrder={5}>ZONE D</Text>
       <Text position={[+26, 0.05, -23]}  rotation={[-Math.PI/2,0,0]} fontSize={1.2} color="#7c3aed" anchorX="center" anchorY="middle" renderOrder={5}>East Storage</Text>
@@ -205,82 +211,128 @@ function DockBayMarkings() {
   );
 }
 
+// A single pallet tower: wood pallet base + `layers` stacked cardboard boxes.
+// `seed` drives deterministic color/height variation.
+function PalletTower({ x, z, layers, seed }: { x: number; z: number; layers: number; seed: number }) {
+  const BOX_H = 0.62;
+  const BOX_W = 1.02;
+  const BOX_D = 0.88;
+  return (
+    <group position={[x, 0, z]}>
+      {/* Wood pallet base */}
+      <mesh position={[0, 0.09, 0]}>
+        <boxGeometry args={[1.18, 0.18, 1.02]} />
+        <meshLambertMaterial color="#7a5c1a" />
+      </mesh>
+      {/* Stacked box layers */}
+      {Array.from({ length: layers }, (_, li) => (
+        <mesh key={li} position={[0, 0.18 + li * BOX_H + BOX_H * 0.5, 0]}>
+          <boxGeometry args={[BOX_W - (li % 2) * 0.04, BOX_H - 0.02, BOX_D - (li % 2) * 0.04]} />
+          <meshLambertMaterial color={BOX_COLORS[(seed + li) % BOX_COLORS.length]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// A cluster of 2-3 adjacent pallet towers grouped as one staging unit.
+// `offsets` = [x,z] offsets within the cluster, one per tower.
+function PalletCluster({ cx, cz, seed }: { cx: number; cz: number; seed: number }) {
+  const towers: { dx: number; dz: number; layers: number }[] = [
+    { dx: -1.25, dz:  0,    layers: 8  + ((seed)     % 7) },
+    { dx:  0,    dz:  0,    layers: 10 + ((seed + 3)  % 6) },
+    { dx:  1.25, dz:  0,    layers: 9  + ((seed + 5)  % 6) },
+  ];
+  return (
+    <>
+      {towers.map((t, i) => (
+        <PalletTower key={i} x={cx + t.dx} z={cz + t.dz} layers={t.layers} seed={seed + i * 4} />
+      ))}
+    </>
+  );
+}
+
 // Static pallet stacks in receiving/shipping staging areas
 function StagingPallets() {
-  // Receiving area staging spots near each dock (z ~ -30)
-  const recv: [number, number][] = [
-    [-58, -30], [-55, -30], [-52, -30],
-    [-19, -30], [-16, -30], [-13, -30],
-    [4,   -30], [7,   -30], [10,  -30],
+  // South wall z=-39, North wall z=+39. Side walls x=±74.
+  // RECV_DOORS at x=-54,-15,+8  (door width ±2.75 → clear lanes ±5 each side)
+  // SHIP_DOORS at x=-30,-5,+49  (same clearance)
+  //
+  // Equipment constraints:
+  //   Receiving: DOCK_WORKER_1 z=-26/-27 x=-38..-15, FL1 x=-54 z=-26, FL2 x=0..+28 z=-26
+  //   Shipping:  PJ1 z=+17 x=-42..-6, PJ2 z=+17 x=+6..+42,
+  //              WALKER_3 x=-32..-6 z=+11..+25, FL3 diagonal x=-38..-4 z=+11..+29,
+  //              FL4 x=+49 z=+11..+29, DOCK_WORKER_2 x=-5..+18 z=+27..+29
+
+  // Pallets only placed in clear STAGING BAYS — never in dock door approach lanes,
+  // never in forklift travel aisles, never outside the building.
+
+  // ── Receiving bays ─────────────────────────────────────────────────────────
+  // Dock doors divide receiving floor into 4 staging bays.
+  // Equipment only travels at z=-26/-27, so rows starting at z=-24 are safe
+  // as long as they're not in the door approach lane x-ranges.
+  //
+  // Door approach lanes (keep clear full z depth):
+  //   x=-54: clear x=-58..-50   x=-15: clear x=-19..-11   x=+8: clear x=+4..+12
+
+  // Bay W  (west wall → door 1):      x=-71 to x=-59
+  // Bay MW (between door 1 and door 2): x=-49 to x=-20
+  // Bay ME (between door 2 and door 3): x=-10 to x=+3
+  // Bay E  (door 3 → east wall):       x=+13 to x=+71
+
+  // SW receiving corner — ChargingStation sits at x=-62,z=-24 so start at z=-29
+  // SE receiving corner — clear of all structures
+  const recvBays: Array<[number, number]> = [
+    [-70,-29],[-66,-29],[-63,-29],
+    [-70,-34],[-66,-34],[-63,-34],
+    [ 62,-24],[ 66,-24],[ 70,-24],
+    [ 62,-29],[ 66,-29],[ 70,-29],
   ];
-  // Shipping area staging spots near each dock (z ~ +30)
-  const ship: [number, number][] = [
-    [-34, 30], [-31, 30], [-28, 30],
-    [-9,  30], [-6,  30], [-3,  30],
-    [45,  30], [48,  30], [51,  30],
+
+  // NW shipping corner is occupied by ControlBooth (x=-68,z=+30) — skip it
+  // NE shipping corner — clear of all structures (all equipment max z=+29)
+  const shipBays: Array<[number, number]> = [
+    [ 62,31],[ 66,31],[ 70,31],
+    [ 62,35],[ 66,35],[ 70,35],
   ];
-  const all = [...recv, ...ship];
+
+  const all = [...recvBays, ...shipBays];
   return (
     <group>
-      {all.map(([px, pz], i) => {
-        const col = BOX_COLORS[i % BOX_COLORS.length];
-        const stacked = i % 3 === 0; // every 3rd pallet has 2 boxes
-        return (
-          <group key={i} position={[px, 0, pz]}>
-            {/* Wood pallet base */}
-            <mesh position={[0, 0.09, 0]}>
-              <boxGeometry args={[1.15, 0.18, 1.0]} />
-              <meshStandardMaterial color="#7a5c1a" roughness={0.96} />
-            </mesh>
-            {/* First box layer */}
-            <mesh position={[0, 0.65, 0]}>
-              <boxGeometry args={[0.98, 0.88, 0.85]} />
-              <meshStandardMaterial color={col} roughness={0.88} />
-            </mesh>
-            {stacked && (
-              <mesh position={[0, 1.42, 0]}>
-                <boxGeometry args={[0.82, 0.72, 0.70]} />
-                <meshStandardMaterial color={BOX_COLORS[(i + 2) % BOX_COLORS.length]} roughness={0.88} />
-              </mesh>
-            )}
-          </group>
-        );
-      })}
+      {all.map(([cx, cz], i) => (
+        <PalletCluster key={i} cx={cx} cz={cz} seed={i * 7 + Math.abs(cx | 0)} />
+      ))}
     </group>
   );
 }
 
 // Forklift battery charging stations (where forklifts park when idle)
 function ChargingStations() {
-  // Near receiving dock parking spots and shipping dock parking spots
   const positions: [number, number][] = [
-    [-62, -24],  // Zone A recv area
-    [3,   -24],  // Zone C recv area
-    [-35,  24],  // Shipping west
-    [52,   24],  // Shipping east
+    [-62, -24], [3, -24], [-35, 24], [52, 24],
   ];
   return (
     <group>
       {positions.map(([px, pz], i) => (
-        <group key={i} position={[px, 0, pz]}>
-          {/* Cabinet body */}
-          <mesh position={[0, 1.3, 0]}>
-            <boxGeometry args={[1.5, 2.6, 0.55]} />
+        <group key={i} position={[px, 0, pz]} scale={[1.5, 1.5, 1.5]}>
+          {/* Cabinet body — 3× original */}
+          <mesh position={[0, 2.5, 0]}>
+            <boxGeometry args={[3.2, 5.0, 1.2]} />
             <meshStandardMaterial color="#374151" roughness={0.65} metalness={0.4} />
           </mesh>
           {/* Yellow stripe */}
-          <mesh position={[0, 0.72, 0.285]}>
-            <boxGeometry args={[1.5, 0.18, 0.02]} />
+          <mesh position={[0, 1.4, 0.62]}>
+            <boxGeometry args={[3.2, 0.38, 0.04]} />
             <meshStandardMaterial color={LINE_COLOR} roughness={0.5} />
           </mesh>
-          {/* Status LED */}
-          <mesh position={[0, 2.2, 0.29]}>
-            <boxGeometry args={[0.28, 0.14, 0.02]} />
+          {/* Status LED panel */}
+          <mesh position={[0, 4.2, 0.62]}>
+            <boxGeometry args={[0.7, 0.32, 0.04]} />
             <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.2} />
           </mesh>
           {/* Charging cable on floor */}
-          <mesh position={[0.5, 0.04, 0.6]} rotation={[0, 0.4, 0]}>
-            <cylinderGeometry args={[0.04, 0.04, 1.4, 6]} />
+          <mesh position={[1.2, 0.08, 1.4]} rotation={[0, 0.4, 0]}>
+            <cylinderGeometry args={[0.09, 0.09, 2.8, 6]} />
             <meshStandardMaterial color="#1f2937" roughness={0.9} />
           </mesh>
         </group>
@@ -295,26 +347,31 @@ function WrapStations() {
   return (
     <group>
       {positions.map(([px, pz], i) => (
-        <group key={i} position={[px, 0, pz]}>
+        <group key={i} position={[px, 0, pz]} scale={[1.5, 1.5, 1.5]}>
           {/* Turntable base */}
-          <mesh position={[0, 0.12, 0]}>
-            <cylinderGeometry args={[0.85, 0.85, 0.24, 16]} />
+          <mesh position={[0, 0.25, 0]}>
+            <cylinderGeometry args={[1.8, 1.8, 0.5, 16]} />
             <meshStandardMaterial color="#6b7280" roughness={0.7} metalness={0.5} />
           </mesh>
           {/* Pallet on turntable */}
-          <mesh position={[0, 0.32, 0]}>
-            <boxGeometry args={[1.1, 0.15, 1.0]} />
+          <mesh position={[0, 0.65, 0]}>
+            <boxGeometry args={[2.3, 0.3, 2.1]} />
             <meshStandardMaterial color="#7a5c1a" roughness={0.96} />
           </mesh>
           {/* Wrapped load */}
-          <mesh position={[0, 1.05, 0]}>
-            <cylinderGeometry args={[0.52, 0.52, 1.3, 12]} />
-            <meshStandardMaterial color="#e5e7eb" roughness={0.5} transparent opacity={0.7} />
+          <mesh position={[0, 2.4, 0]}>
+            <cylinderGeometry args={[1.1, 1.1, 3.0, 14]} />
+            <meshStandardMaterial color="#e5e7eb" roughness={0.5} transparent opacity={0.75} />
           </mesh>
-          {/* Mast */}
-          <mesh position={[1.0, 1.2, 0]}>
-            <cylinderGeometry args={[0.06, 0.06, 2.4, 8]} />
+          {/* Wrap mast */}
+          <mesh position={[2.1, 2.5, 0]}>
+            <cylinderGeometry args={[0.12, 0.12, 5.0, 8]} />
             <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.3} />
+          </mesh>
+          {/* Film roll on mast */}
+          <mesh position={[2.1, 1.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.3, 0.3, 0.5, 10]} />
+            <meshStandardMaterial color="#e5e7eb" roughness={0.5} transparent opacity={0.6} />
           </mesh>
         </group>
       ))}
@@ -330,19 +387,19 @@ function SafetyStations() {
   return (
     <group>
       {positions.map(([px, , pz], i) => (
-        <group key={i} position={[px, 0, pz]}>
-          {/* Red cabinet */}
-          <mesh position={[0, 1.0, 0]}>
-            <boxGeometry args={[0.22, 0.8, 0.55]} />
+        <group key={i} position={[px, 0, pz]} scale={[1.5, 1.5, 1.5]}>
+          {/* Red cabinet — 3× original */}
+          <mesh position={[0, 2.0, 0]}>
+            <boxGeometry args={[0.5, 2.4, 1.4]} />
             <meshStandardMaterial color="#dc2626" roughness={0.6} />
           </mesh>
-          {/* White cross */}
-          <mesh position={[0.12, 1.0, 0]}>
-            <boxGeometry args={[0.02, 0.35, 0.08]} />
+          {/* White cross H */}
+          <mesh position={[0.27, 2.0, 0]}>
+            <boxGeometry args={[0.04, 0.9, 0.22]} />
             <meshStandardMaterial color="white" roughness={0.5} />
           </mesh>
-          <mesh position={[0.12, 1.0, 0]}>
-            <boxGeometry args={[0.02, 0.08, 0.35]} />
+          <mesh position={[0.27, 2.0, 0]}>
+            <boxGeometry args={[0.04, 0.22, 0.9]} />
             <meshStandardMaterial color="white" roughness={0.5} />
           </mesh>
         </group>
@@ -354,27 +411,438 @@ function SafetyStations() {
 // Supervisor / control booth in the northwest corner
 function ControlBooth() {
   return (
-    <group position={[-68, 0, 30]}>
+    <group position={[-68, 0, 30]} scale={[1.5, 1.5, 1.5]}>
       {/* Walls */}
-      <mesh position={[0, 1.8, 0]}>
-        <boxGeometry args={[6, 3.6, 5]} />
+      <mesh position={[0, 2.5, 0]}>
+        <boxGeometry args={[8, 5.0, 7]} />
         <meshStandardMaterial color="#e5e7eb" roughness={0.85} />
       </mesh>
       {/* Glass window front */}
-      <mesh position={[3.05, 2.1, 0]}>
-        <boxGeometry args={[0.08, 2.0, 3.5]} />
+      <mesh position={[4.05, 3.0, 0]}>
+        <boxGeometry args={[0.12, 3.0, 5.5]} />
         <meshStandardMaterial color="#bfdbfe" roughness={0.1} metalness={0.4} transparent opacity={0.55} />
       </mesh>
       {/* Roof */}
-      <mesh position={[0, 3.7, 0]}>
-        <boxGeometry args={[6.4, 0.2, 5.4]} />
+      <mesh position={[0, 5.1, 0]}>
+        <boxGeometry args={[8.4, 0.28, 7.4]} />
         <meshStandardMaterial color="#9ca3af" roughness={0.9} />
       </mesh>
       {/* Door */}
-      <mesh position={[3.05, 1.0, 1.6]}>
-        <boxGeometry args={[0.08, 2.0, 0.9]} />
+      <mesh position={[4.05, 1.4, 2.2]}>
+        <boxGeometry args={[0.12, 2.8, 1.3]} />
         <meshStandardMaterial color="#d97706" roughness={0.7} />
       </mesh>
+    </group>
+  );
+}
+
+// ── Receiving check-in desk ───────────────────────────────────────────────────
+// x=-30, z=-25: moved south from z=-23 to clear rack at x=-28 (south face z=-22).
+// Desk north face at z=-23.5 and chairs north edge at z=-23.8 — both clear of racks.
+function ReceivingDesk() {
+  return (
+    <group position={[-30, 0, -25]} scale={[1.5, 1.5, 1.5]}>
+      {/* Desk body */}
+      <mesh position={[0, 1.0, 0]}>
+        <boxGeometry args={[6.0, 2.0, 2.0]} />
+        <meshStandardMaterial color="#9ca3af" roughness={0.75} />
+      </mesh>
+      {/* Desk surface */}
+      <mesh position={[0, 2.05, 0]}>
+        <boxGeometry args={[6.4, 0.14, 2.4]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.6} />
+      </mesh>
+      {/* Monitor left */}
+      <mesh position={[-1.8, 3.5, -0.3]}>
+        <boxGeometry args={[2.2, 1.5, 0.14]} />
+        <meshStandardMaterial color="#111827" roughness={0.4} metalness={0.3} />
+      </mesh>
+      <mesh position={[-1.8, 3.5, -0.22]}>
+        <boxGeometry args={[2.0, 1.35, 0.02]} />
+        <meshStandardMaterial color="#bfdbfe" emissive="#bfdbfe" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Monitor right */}
+      <mesh position={[1.4, 3.5, -0.3]}>
+        <boxGeometry args={[2.2, 1.5, 0.14]} />
+        <meshStandardMaterial color="#111827" roughness={0.4} metalness={0.3} />
+      </mesh>
+      <mesh position={[1.4, 3.5, -0.22]}>
+        <boxGeometry args={[2.0, 1.35, 0.02]} />
+        <meshStandardMaterial color="#bfdbfe" emissive="#bfdbfe" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Label printer */}
+      <mesh position={[-0.2, 2.4, -0.3]}>
+        <boxGeometry args={[1.3, 0.6, 0.8]} />
+        <meshStandardMaterial color="#f3f4f6" roughness={0.6} />
+      </mesh>
+      {/* Two chairs */}
+      {([-1.5, 1.5] as const).map((xo, i) => (
+        <group key={i} position={[xo, 0, 1.4]}>
+          <mesh position={[0, 1.1, 0]}>
+            <boxGeometry args={[1.2, 0.16, 1.2]} />
+            <meshStandardMaterial color="#1f2937" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, 2.0, -0.6]}>
+            <boxGeometry args={[1.2, 1.4, 0.15]} />
+            <meshStandardMaterial color="#1f2937" roughness={0.8} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// ── QA / Inspection table ────────────────────────────────────────────────────
+// x=+30, z=-24: east of dock door 3 (x=+8), clear of all routes.
+// ── QA / Inspection table ────────────────────────────────────────────────────
+// x=+50, z=-25: east of RECV_DOOR[2] (x=+8), east of FL2 max reach (x=+28), clear of all routes.
+// Original x=+30 was colliding with FL2 whose path goes to (x=+28, z=-26) and the table
+// south face (z=-26.25) was clipping FL2's z=-26 travel lane. Moved east to x=+50.
+function QAInspectionTable() {
+  const legs: [number, number][] = [[-3.5, -1.2], [-3.5, 1.2], [3.5, -1.2], [3.5, 1.2]];
+  return (
+    <group position={[50, 0, -25]} scale={[1.5, 1.5, 1.5]}>
+      {/* Table top */}
+      <mesh position={[0, 2.0, 0]}>
+        <boxGeometry args={[8.0, 0.16, 3.0]} />
+        <meshStandardMaterial color="#fef3c7" roughness={0.6} />
+      </mesh>
+      {/* Legs */}
+      {legs.map(([lx, lz], i) => (
+        <mesh key={i} position={[lx, 1.0, lz]}>
+          <boxGeometry args={[0.16, 2.0, 0.16]} />
+          <meshStandardMaterial color="#6b7280" metalness={0.6} roughness={0.3} />
+        </mesh>
+      ))}
+      {/* Shelf under table */}
+      <mesh position={[0, 0.8, 0]}>
+        <boxGeometry args={[7.6, 0.1, 2.6]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.7} />
+      </mesh>
+      {/* Boxes being inspected */}
+      <mesh position={[-2.0, 2.5, 0]}>
+        <boxGeometry args={[1.4, 1.1, 1.2]} />
+        <meshStandardMaterial color="#c8924a" roughness={0.9} />
+      </mesh>
+      <mesh position={[1.0, 2.5, 0.2]}>
+        <boxGeometry args={[1.6, 1.3, 1.4]} />
+        <meshStandardMaterial color="#b87c38" roughness={0.9} />
+      </mesh>
+      {/* Clipboard */}
+      <mesh position={[-3.0, 2.18, -0.5]}>
+        <boxGeometry args={[0.8, 0.05, 1.1]} />
+        <meshStandardMaterial color="#ffffff" roughness={0.8} />
+      </mesh>
+      {/* QA sign post */}
+      <mesh position={[4.2, 3.5, -1.4]}>
+        <boxGeometry args={[0.15, 3.5, 0.15]} />
+        <meshStandardMaterial color="#374151" metalness={0.5} roughness={0.4} />
+      </mesh>
+      <mesh position={[4.2, 5.1, -1.4]}>
+        <boxGeometry args={[2.2, 0.8, 0.12]} />
+        <meshStandardMaterial color="#fbbf24" roughness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+// ── Inbound roller conveyor ───────────────────────────────────────────────────
+// x=-44, z=-29: moved from x=-50,z=-21 which overlapped rack x=-49.
+// At x=-44 spans x=-45.8 to -42.2 — clear of rack x=-49 (east edge -47.9) by 2.1 u
+// and rack x=-42 (west edge -43.1) by 0.9 u. z=-29 north face at -23, clear of z=-22.
+function ConveyorSegment() {
+  const CONV_LEN = 8.0;
+  const CONV_W   = 2.4;
+  const RAIL_H   = 1.3;
+  return (
+    <group position={[-44, 0, -29]} scale={[1.5, 1.5, 1.5]}>
+      {/* Side rails */}
+      {([-CONV_W / 2, CONV_W / 2] as const).map((xo, i) => (
+        <mesh key={i} position={[xo, RAIL_H, 0]}>
+          <boxGeometry args={[0.14, 0.22, CONV_LEN]} />
+          <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.3} />
+        </mesh>
+      ))}
+      {/* Rollers */}
+      {Array.from({ length: 10 }, (_, ri) => (
+        <mesh key={ri} position={[0, RAIL_H, -CONV_LEN / 2 + 0.45 + ri * 0.8]}
+          rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.11, 0.11, CONV_W, 8]} />
+          <meshStandardMaterial color="#6b7280" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      {/* Support legs (4 pairs) */}
+      {[-3.0, -1.0, 1.0, 3.0].flatMap((zo) =>
+        ([-CONV_W / 2 + 0.15, CONV_W / 2 - 0.15] as const).map((xo, j) => (
+          <mesh key={`${zo}-${j}`} position={[xo, RAIL_H / 2, zo]}>
+            <boxGeometry args={[0.13, RAIL_H, 0.13]} />
+            <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.3} />
+          </mesh>
+        ))
+      )}
+      {/* Boxes on conveyor */}
+      <mesh position={[0, RAIL_H + 0.75, -2.0]}>
+        <boxGeometry args={[1.6, 1.3, 1.5]} />
+        <meshStandardMaterial color="#c8924a" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, RAIL_H + 0.85, 1.5]}>
+        <boxGeometry args={[1.8, 1.5, 1.6]} />
+        <meshStandardMaterial color="#b87c38" roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+// ── Weigh & manifest station ──────────────────────────────────────────────────
+// x=-38, z=+26: FL3 at this x is at z=+11 (not in [+23.4,+28.6]). PJ1 at z=+17
+// is now 6+ units south of platform south face (+23.4). WALKER_3 max x=-32, not at x=-38.
+// Moved from [-43,0,20] where platform south face z=+17.375 clipped PJ1 pause at z=+17.
+function WeighManifestStation() {
+  return (
+    <group position={[-38, 0, 26]} scale={[1.5, 1.5, 1.5]}>
+      {/* Floor scale platform */}
+      <mesh position={[0, 0.18, 0]}>
+        <boxGeometry args={[4.0, 0.36, 3.5]} />
+        <meshStandardMaterial color="#374151" roughness={0.55} metalness={0.5} />
+      </mesh>
+      {/* Yellow safety border */}
+      <mesh renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.37, 0]}>
+        <planeGeometry args={[4.0, 3.5]} />
+        <meshBasicMaterial color={LINE_COLOR} transparent opacity={0.35} depthWrite={false}
+          {...({ polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 } as any)} />
+      </mesh>
+      {/* Pallet on scale */}
+      <mesh position={[0, 0.46, 0]}>
+        <boxGeometry args={[2.3, 0.28, 2.1]} />
+        <meshStandardMaterial color="#7a5c1a" roughness={0.96} />
+      </mesh>
+      <mesh position={[0, 1.4, 0]}>
+        <boxGeometry args={[1.8, 1.6, 1.7]} />
+        <meshStandardMaterial color="#c8924a" roughness={0.9} />
+      </mesh>
+      {/* Terminal pole */}
+      <mesh position={[2.6, 2.0, 1.5]}>
+        <boxGeometry args={[0.18, 4.0, 0.18]} />
+        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.3} />
+      </mesh>
+      {/* Terminal screen */}
+      <mesh position={[2.6, 3.9, 1.5]}>
+        <boxGeometry args={[1.3, 0.95, 0.15]} />
+        <meshStandardMaterial color="#111827" roughness={0.4} metalness={0.3} />
+      </mesh>
+      <mesh position={[2.6, 3.9, 1.43]}>
+        <boxGeometry args={[1.1, 0.8, 0.02]} />
+        <meshStandardMaterial color="#bfdbfe" emissive="#bfdbfe" emissiveIntensity={0.35} />
+      </mesh>
+    </group>
+  );
+}
+
+// ── Packaging materials supply rack ──────────────────────────────────────────
+// x=+25, z=+33: between ship doors, near north wall. All equipment max z=+29.
+function PackagingSupplyRack() {
+  const rollColors = ['#e5e7eb', '#fbbf24', '#d1d5db', '#f3f4f6'];
+  return (
+    <group position={[25, 0, 33]} scale={[1.5, 1.5, 1.5]}>
+      {/* Uprights */}
+      {([-3.5, 0, 3.5] as const).map((xo, i) => (
+        <mesh key={i} position={[xo, 3.5, 0]}>
+          <boxGeometry args={[0.16, 7.0, 0.16]} />
+          <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.3} />
+        </mesh>
+      ))}
+      {/* Shelf boards — 4 levels */}
+      {[1.2, 2.6, 4.0, 5.4].map((y, i) => (
+        <mesh key={i} position={[0, y, 0]}>
+          <boxGeometry args={[7.2, 0.14, 1.8]} />
+          <meshStandardMaterial color="#9ca3af" metalness={0.4} roughness={0.5} />
+        </mesh>
+      ))}
+      {/* Rolls on each shelf */}
+      {[0, 1, 2, 3].map(shelf =>
+        [-2.6, -1.3, 0, 1.3, 2.6].map((xo, j) => (
+          <mesh key={`${shelf}-${j}`} position={[xo, 1.2 + shelf * 1.4 + 0.5, 0]}
+            rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.42, 0.42, 0.52, 10]} />
+            <meshStandardMaterial color={rollColors[j % 4]} roughness={0.65} />
+          </mesh>
+        ))
+      )}
+    </group>
+  );
+}
+
+// ── Empty pallet stacks against dock walls ────────────────────────────────────
+// Stacks of 10-14 bare pallets stored between dock doors — extremely common in
+// real warehouses. Placed at z=-37 (south) and z=+37 (north), between door
+// approach lanes and away from all equipment travel paths.
+function EmptyPalletStacks() {
+  const stacks: Array<{ x: number; z: number; count: number }> = [
+    { x: -35, z: -37, count: 13 }, // south wall, between recv doors 1 & 2
+    { x: +30, z: -37, count: 11 }, // south wall, east of recv door 3
+    { x: -15, z: +37, count: 12 }, // north wall, between ship doors 1 & 2
+    { x: +30, z: +37, count: 14 }, // north wall, between ship doors 2 & 3
+  ];
+  return (
+    <group>
+      {stacks.map((s, si) => (
+        // Two side-by-side stacks per location
+        <group key={si} position={[s.x, 0, s.z]}>
+          {([0, 2.4] as const).map((xOff, ti) => (
+            <group key={ti} position={[xOff, 0, 0]}>
+              {Array.from({ length: s.count + (ti === 0 ? 0 : -2) }, (_, pi) => (
+                <mesh key={pi} position={[0, 0.11 + pi * 0.2, 0]}>
+                  <boxGeometry args={[2.1, 0.18, 1.8]} />
+                  <meshLambertMaterial color="#7a5c1a" />
+                </mesh>
+              ))}
+              {/* Fork entry stringers visible from side */}
+              {([-0.55, 0.55] as const).map((fb, fi) => (
+                <mesh key={fi} position={[fb, 0.07, 0]}>
+                  <boxGeometry args={[0.14, 0.14, 1.8]} />
+                  <meshLambertMaterial color="#6b4c15" />
+                </mesh>
+              ))}
+            </group>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// ── Industrial dock ventilation fans ─────────────────────────────────────────
+// Large floor-standing fans on wheeled bases, placed near dock doors for air
+// circulation. Positioned against side walls clear of all equipment routes.
+function DockFans() {
+  const positions: Array<[number, number]> = [
+    [-67, -34], // west side, receiving — east of side wall, clear of ChargingStation at x=-62,z=-24
+    [+70, -30], // east side, receiving
+    [+70, +30], // east side, shipping
+  ];
+  return (
+    <group>
+      {positions.map(([px, pz], i) => (
+        <group key={i} position={[px, 0, pz]} scale={[1.5, 1.5, 1.5]}>
+          {/* Wheeled base */}
+          <mesh position={[0, 0.35, 0]}>
+            <boxGeometry args={[1.1, 0.7, 0.9]} />
+            <meshStandardMaterial color="#374151" roughness={0.65} metalness={0.5} />
+          </mesh>
+          {/* Caster wheels */}
+          {([-0.4, 0.4] as const).map((xw, wi) => (
+            <mesh key={wi} position={[xw, 0.14, 0.42]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.16, 0.16, 0.12, 10]} />
+              <meshStandardMaterial color="#1f2937" roughness={0.9} />
+            </mesh>
+          ))}
+          {/* Vertical stand pole */}
+          <mesh position={[0, 1.9, 0]}>
+            <cylinderGeometry args={[0.07, 0.07, 2.4, 8]} />
+            <meshStandardMaterial color="#6b7280" metalness={0.7} roughness={0.3} />
+          </mesh>
+          {/* Fan guard ring */}
+          <mesh position={[0, 3.1, 0]}>
+            <torusGeometry args={[0.88, 0.1, 8, 24]} />
+            <meshStandardMaterial color="#374151" metalness={0.55} roughness={0.4} />
+          </mesh>
+          {/* Fan blades — 4 blades in X-Y plane */}
+          {[0, Math.PI / 2, Math.PI, (Math.PI * 3) / 2].map((ang, bi) => (
+            <mesh
+              key={bi}
+              position={[Math.cos(ang) * 0.38, 3.1 + Math.sin(ang) * 0.38, 0]}
+              rotation={[0, 0, ang + Math.PI / 4]}>
+              <boxGeometry args={[0.14, 0.72, 0.05]} />
+              <meshStandardMaterial color="#9ca3af" metalness={0.4} roughness={0.5} />
+            </mesh>
+          ))}
+          {/* Tilt head knob */}
+          <mesh position={[0, 3.1, 0]}>
+            <sphereGeometry args={[0.14, 8, 8]} />
+            <meshStandardMaterial color="#4b5563" metalness={0.6} roughness={0.4} />
+          </mesh>
+          {/* Safety yellow stripe on base */}
+          <mesh position={[0, 0.71, 0]}>
+            <boxGeometry args={[1.14, 0.1, 0.94]} />
+            <meshStandardMaterial color={LINE_COLOR} roughness={0.5} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// ── Cardboard baler / compactor ───────────────────────────────────────────────
+// Recycling compactor near dock walls — takes in cardboard boxes, outputs
+// compressed bales. Placed between dock doors against the south/north walls.
+// Positions confirmed clear of all equipment routes (all equipment max z=±29).
+function CardboardBaler() {
+  const positions: Array<[number, number]> = [
+    [+45, -37], // receiving east — east of door 3 (x=+8), east of FL2 range (x≤+28)
+    [-42, +37], // shipping west — west of door 1 (x=-30), east of ControlBooth (x≥-62)
+  ];
+  return (
+    <group>
+      {positions.map(([px, pz], i) => (
+        <group key={i} position={[px, 0, pz]} scale={[1.5, 1.5, 1.5]}>
+          {/* Main machine body */}
+          <mesh position={[0, 2.6, 0]}>
+            <boxGeometry args={[2.6, 5.2, 1.8]} />
+            <meshStandardMaterial color="#374151" roughness={0.65} metalness={0.45} />
+          </mesh>
+          {/* Feed chute opening at top */}
+          <mesh position={[0, 5.1, 0.95]}>
+            <boxGeometry args={[1.8, 1.4, 0.1]} />
+            <meshStandardMaterial color="#111827" roughness={0.5} />
+          </mesh>
+          {/* Chute funnel lip */}
+          <mesh position={[0, 5.8, 0.88]}>
+            <boxGeometry args={[2.2, 0.25, 0.4]} />
+            <meshStandardMaterial color="#4b5563" metalness={0.5} roughness={0.5} />
+          </mesh>
+          {/* Bale exit door at bottom-front */}
+          <mesh position={[0, 1.0, 0.95]}>
+            <boxGeometry args={[2.0, 1.6, 0.1]} />
+            <meshStandardMaterial color="#6b7280" roughness={0.6} metalness={0.4} />
+          </mesh>
+          {/* Compressed cardboard bale sitting outside */}
+          <mesh position={[0, 0.9, 1.8]}>
+            <boxGeometry args={[1.7, 1.4, 1.0]} />
+            <meshStandardMaterial color="#c8924a" roughness={0.95} />
+          </mesh>
+          {/* Baling wire straps on bale */}
+          {([-0.5, 0.5] as const).map((bx, bi) => (
+            <mesh key={bi} position={[bx, 0.9, 1.8]}>
+              <boxGeometry args={[0.06, 1.42, 1.04]} />
+              <meshStandardMaterial color="#6b7280" metalness={0.7} roughness={0.4} />
+            </mesh>
+          ))}
+          {/* Yellow hazard stripe base */}
+          <mesh position={[0, 0.22, 0]}>
+            <boxGeometry args={[2.64, 0.3, 1.84]} />
+            <meshStandardMaterial color={LINE_COLOR} roughness={0.5} />
+          </mesh>
+          {/* Control panel on side */}
+          <mesh position={[1.35, 3.2, 0.2]}>
+            <boxGeometry args={[0.1, 1.1, 0.75]} />
+            <meshStandardMaterial color="#111827" roughness={0.4} metalness={0.3} />
+          </mesh>
+          <mesh position={[1.36, 3.2, 0.2]}>
+            <boxGeometry args={[0.04, 0.9, 0.6]} />
+            <meshStandardMaterial color="#bfdbfe" emissive="#bfdbfe" emissiveIntensity={0.3} />
+          </mesh>
+          {/* Emergency stop button (red) */}
+          <mesh position={[1.36, 3.8, 0.2]}>
+            <cylinderGeometry args={[0.09, 0.09, 0.05, 10]} />
+            <meshStandardMaterial color="#dc2626" emissive="#dc2626" emissiveIntensity={0.4} />
+          </mesh>
+          {/* "RECYCLE" signage on machine */}
+          <mesh position={[0, 4.4, 0.96]}>
+            <boxGeometry args={[1.8, 0.55, 0.08]} />
+            <meshStandardMaterial color="#16a34a" roughness={0.5} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }
@@ -409,6 +877,9 @@ export function WarehouseFloor() {
       {/* Rack rows */}
       {RACK_ROWS.map((x, i) => <RackRow key={i} x={x} />)}
 
+      {/* Shipping buffer racks — forward-pick zone at far-west/east columns only (no route conflicts) */}
+      {SHIP_RACK_X.map((x, i) => <ShippingBufferRack key={i} x={x} />)}
+
       {/* Walls with dock doors */}
       <Walls />
 
@@ -426,6 +897,76 @@ export function WarehouseFloor() {
       <WrapStations />
       <SafetyStations />
       <ControlBooth />
+      <ReceivingDesk />
+      <QAInspectionTable />
+      <ConveyorSegment />
+      <WeighManifestStation />
+      <PackagingSupplyRack />
+      <EmptyPalletStacks />
+      <DockFans />
+      <CardboardBaler />
+
+    </group>
+  );
+}
+
+// ── Shipping Buffer Rack (forward-pick zone near docks) ───────────────────────
+// Only placed at far-west (x≤-45) and far-east (x≥+56) columns where no
+// equipment routes travel in the shipping zone (z=+13 to +28).
+const SHIP_Z_S      = 13;
+const SHIP_Z_N      = 28;
+const SHIP_RACK_D   = SHIP_Z_N - SHIP_Z_S;          // 15
+const SHIP_BAY_FRAMES = Math.round(SHIP_RACK_D / BAY_SPACING) + 1;  // 5
+const SHIP_LEVELS   = 3;
+const SHIP_RACK_H   = SHIP_LEVELS * (RACK_H / RACK_LEVELS);         // 7.8
+
+// Safe x columns: far west ≤ -45, far east ≥ +56 (no E-W routes cross here in shipping zone)
+const SHIP_RACK_X: number[] = [-59, -49, -42, 56, 60];
+
+function ShippingBufferRack({ x }: { x: number }) {
+  const levelH = SHIP_RACK_H / SHIP_LEVELS;
+  const hasBox = (bi: number, li: number) =>
+    (((bi * 7 + li * 11 + x * 3) % 10 + 10) % 10) > 1;
+  const boxColor = (bi: number, li: number) => BOX_COLORS[(bi + li) % BOX_COLORS.length];
+
+  return (
+    <group position={[x, 0, SHIP_Z_S]}>
+      {/* Upright frames */}
+      {Array.from({ length: SHIP_BAY_FRAMES }, (_, fi) => (
+        <group key={`sf-${fi}`} position={[0, 0, fi * BAY_SPACING]}>
+          {([-RACK_W / 2, RACK_W / 2] as const).map((xOff, pi) => (
+            <mesh key={pi} position={[xOff, SHIP_RACK_H / 2, 0]}>
+              <boxGeometry args={[0.1, SHIP_RACK_H, 0.1]} />
+              <meshLambertMaterial color={UPRIGHT} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
+      {/* Orange horizontal beams */}
+      {Array.from({ length: SHIP_LEVELS + 1 }, (_, li) => (
+        <group key={`sb-${li}`} position={[0, li * levelH, SHIP_RACK_D / 2]}>
+          {([-RACK_W / 2, RACK_W / 2] as const).map((xOff, ri) => (
+            <mesh key={ri} position={[xOff, 0, 0]}>
+              <boxGeometry args={[0.08, 0.09, SHIP_RACK_D]} />
+              <meshLambertMaterial color={BEAM_COLOR} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
+      {/* Cardboard boxes */}
+      {Array.from({ length: SHIP_BAY_FRAMES - 1 }, (_, bi) =>
+        Array.from({ length: SHIP_LEVELS }, (_, li) =>
+          hasBox(bi, li) ? (
+            <mesh key={`sbx-${bi}-${li}`}
+              position={[0, li * levelH + levelH * 0.48, bi * BAY_SPACING + BAY_SPACING / 2]}>
+              <boxGeometry args={[RACK_W - 0.28, levelH * 0.74, BAY_SPACING - 0.4]} />
+              <meshLambertMaterial color={boxColor(bi, li)} />
+            </mesh>
+          ) : null
+        )
+      )}
     </group>
   );
 }
@@ -434,7 +975,7 @@ export function WarehouseFloor() {
 function RackRow({ x }: { x: number }) {
   const levelH = RACK_H / RACK_LEVELS;
   const hasBox = (bi: number, li: number) =>
-    !_dynSlotSet.has(`${x}:${bi}:${li}`) && ((bi * 7 + li * 11 + x * 3) % 10) > 2;
+    !_dynSlotSet.has(`${x}:${bi}:${li}`) && (((bi * 7 + li * 11 + x * 3) % 10 + 10) % 10) > 1;
   const boxColor = (bi: number, li: number) => BOX_COLORS[(bi + li) % BOX_COLORS.length];
 
   return (
@@ -447,7 +988,7 @@ function RackRow({ x }: { x: number }) {
             {([-RACK_W / 2, RACK_W / 2] as const).map((xOff, pi) => (
               <mesh key={pi} position={[xOff, RACK_H / 2, 0]}>
                 <boxGeometry args={[0.1, RACK_H, 0.1]} />
-                <meshStandardMaterial color={UPRIGHT} metalness={0.7} roughness={0.3} />
+                <meshLambertMaterial color={UPRIGHT} />
               </mesh>
             ))}
           </group>
@@ -460,7 +1001,7 @@ function RackRow({ x }: { x: number }) {
           {([-RACK_W / 2, RACK_W / 2] as const).map((xOff, ri) => (
             <mesh key={ri} position={[xOff, 0, 0]}>
               <boxGeometry args={[0.08, 0.09, RACK_D]} />
-              <meshStandardMaterial color={BEAM_COLOR} metalness={0.5} roughness={0.4} />
+              <meshLambertMaterial color={BEAM_COLOR} />
             </mesh>
           ))}
         </group>
@@ -474,7 +1015,7 @@ function RackRow({ x }: { x: number }) {
               position={[0, li * levelH + levelH * 0.48, bi * BAY_SPACING + BAY_SPACING / 2]}
              >
               <boxGeometry args={[RACK_W - 0.28, levelH * 0.74, BAY_SPACING - 0.4]} />
-              <meshStandardMaterial color={boxColor(bi, li)} roughness={0.9} />
+              <meshLambertMaterial color={boxColor(bi, li)} />
             </mesh>
           ) : null
         )

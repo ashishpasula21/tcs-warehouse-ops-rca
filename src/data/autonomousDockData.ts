@@ -51,6 +51,8 @@ export interface DockEvent {
   type: 'decision' | 'alert' | 'info' | 'success';
   msg: string;
   dockId?: string;
+  action?: string;  // what the AI is doing / will do
+  impact?: string;  // projected effect on the scenario
 }
 
 // ── Dock Bays ─────────────────────────────────────────────────────────────────
@@ -151,14 +153,54 @@ export const DOCK_OPTIMISED = {
 
 // ── Live Event Log ────────────────────────────────────────────────────────────
 export const DOCK_EVENTS: DockEvent[] = [
-  { time: '13:52', type: 'decision', msg: 'T-103 (Old Dominion) assigned → R-1: shortest path to Zone A storage (18 m)', dockId: 'R-1' },
-  { time: '13:48', type: 'alert',    msg: 'S-3 staging area congestion rising — 4 pallets waiting, forklift queue blocked' },
-  { time: '13:41', type: 'decision', msg: 'Wave W-07 load sequence reordered: large → medium → small. Fill rate ↑ 71% → 85%', dockId: 'S-3' },
-  { time: '13:35', type: 'success',  msg: 'T-102 unload complete at R-2 — 21 pallets to Zone B in 34 min (target: 40)' },
-  { time: '13:28', type: 'info',     msg: 'T-101 truck arriving — auto-assigned R-3 (low congestion, direct Zone A aisle)' },
-  { time: '13:10', type: 'decision', msg: 'Wave W-06 dispatched from S-2 — 48/48 pallets loaded, fill rate 100%' },
-  { time: '12:54', type: 'alert',    msg: 'R-2 turn time 62 min exceeds target 45 — suggest additional forklift assignment' },
-  { time: '12:33', type: 'success',  msg: 'Dock rebalance: T-104 rerouted R-3 → R-1 saving 13 m pathing distance' },
+  {
+    time: '13:52', type: 'decision', dockId: 'R-1',
+    msg: 'T-103 (Old Dominion) assigned → R-1: shortest path to Zone A storage (18 m)',
+    action: 'Reassigning inbound truck T-103 from the default queue position to Receiving Dock R-1, the closest dock to its Zone A destination, using zone-affinity routing.',
+    impact: 'Cuts path distance from 31 m to 18 m (−42%). Estimated turn-time reduction of 13 min. R-3 remains available for the next inbound arrival without any queue conflict.',
+  },
+  {
+    time: '13:48', type: 'alert',
+    msg: 'S-3 staging area congestion rising — 4 pallets waiting, forklift queue blocked',
+    action: 'Monitoring S-3 staging lane. If pallet count reaches threshold within the next 4 minutes, the AI will pre-activate an adjacent idle dock and redistribute the next outbound wave.',
+    impact: 'Early detection prevents a full forklift queue block. Proactive rebalancing is projected to keep staging congestion below 6 pallets, avoiding a 15–20 min throughput delay.',
+  },
+  {
+    time: '13:41', type: 'decision', dockId: 'S-3',
+    msg: 'Wave W-07 load sequence reordered: large → medium → small. Fill rate ↑ 71% → 85%',
+    action: 'Resequencing Wave W-07 trailer load order: heavy/large SKUs loaded first as the base layer, medium items as structural mid-layer, small items used as gap-fillers last.',
+    impact: 'Trailer fill rate improves from 71% to 85% (+14 pp). Structural voids eliminated, reducing in-transit shift risk. Load time reduced by approximately 7 min due to fewer restacks.',
+  },
+  {
+    time: '13:35', type: 'success',
+    msg: 'T-102 unload complete at R-2 — 21 pallets to Zone B in 34 min (target: 40)',
+    action: 'T-102 completed unloading 6 minutes ahead of the 40-minute target. R-2 is now being cleared and marked available for the next queued inbound truck.',
+    impact: 'R-2 freed 6 min early, enabling T-104 to begin dock approach immediately. Estimated cascade benefit: +1 additional receiving cycle completed this shift.',
+  },
+  {
+    time: '13:28', type: 'info',
+    msg: 'T-101 truck arriving — auto-assigned R-3 (low congestion, direct Zone A aisle)',
+    action: 'Auto-assigning arriving truck T-101 to R-3 based on real-time congestion scoring: R-3 has the lowest staging pallet count (2) and a direct aisle to Zone A storage.',
+    impact: 'Avoids adding load to congested R-1 and R-2 staging lanes. Expected turn time 44 min vs. 58 min baseline — within the 45-min target window.',
+  },
+  {
+    time: '13:10', type: 'decision', dockId: 'S-2',
+    msg: 'Wave W-06 dispatched from S-2 — 48/48 pallets loaded, fill rate 100%',
+    action: 'Dispatching Wave W-06 from S-2 after confirming 100% trailer capacity utilisation. AI load sequence placed all 48 pallets without structural compromise.',
+    impact: 'Full trailer dispatch avoids a partial-load penalty. Carrier departure 8 min ahead of schedule. S-2 dock cleared for the next outbound wave queue.',
+  },
+  {
+    time: '12:54', type: 'alert',
+    msg: 'R-2 turn time 62 min exceeds target 45 — suggest additional forklift assignment',
+    action: 'Flagging R-2 for supervisor review. AI recommends reassigning one forklift unit from the staging buffer to the R-2 active unload lane to clear the backlog.',
+    impact: 'An additional forklift reduces remaining unload time by an estimated 12–15 min, bringing R-2 back within target range and preventing downstream staging congestion.',
+  },
+  {
+    time: '12:33', type: 'success',
+    msg: 'Dock rebalance: T-104 rerouted R-3 → R-1 saving 13 m pathing distance',
+    action: 'Executed real-time dock rebalance triggered by T-102 completing unload ahead of schedule. T-104 was rerouted from R-3 to the newly freed R-1 dock.',
+    impact: 'Storage walk distance reduced from 31 m to 18 m for T-104. Estimated turn-time saving: 11 min. R-3 remains available for the next arrival without creating a gap in receiving coverage.',
+  },
 ];
 
 // ── Pathing distance matrix (dock → primary storage zone), meters ─────────────

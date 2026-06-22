@@ -127,11 +127,11 @@ function DynamicShelfBox({ wx, wy, wz, watchRoute, color, slotIdx }: {
 }
 
 // Zone A (FL-1) and Zone D (FL-2) react to inbound forklifts.
-// Zone B (-45, -28): FL-3 drives in to pick from the rack → shelf box vanishes while FL-3 carries.
+// Zone B (-42, -28): FL-3 drives in to pick from the rack → shelf box vanishes while FL-3 carries.
 // Zone E (+42, +56): FL-4 does the same on the east end.
 function routeForRack(rackX: number): EquipmentRoute {
   if (rackX === -59 || rackX === -49) return FL1_ROUTE;
-  if (rackX === -45 || rackX === -28) return FL3_ROUTE;
+  if (rackX === -42 || rackX === -28) return FL3_ROUTE;
   if (rackX === 17  || rackX === 37)  return FL2_ROUTE;
   return FL4_ROUTE;
 }
@@ -267,11 +267,14 @@ export function WarehouseScene() {
     : null;
 
   return (
-    <Canvas gl={{ antialias: true, alpha: false, logarithmicDepthBuffer: true }} style={{ width: '100%', height: '100%' }}>
+    <Canvas
+      dpr={[1, 1.5]}
+      gl={{ antialias: true, alpha: false, logarithmicDepthBuffer: true, powerPreference: 'high-performance' }}
+      style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={['#b8ccd8']} />
       <fog attach="fog" args={['#c4d8e4', 120, 240]} />
 
-      <PerspectiveCamera makeDefault position={[8, 70, 95]} fov={52} near={0.1} far={500} />
+      <PerspectiveCamera makeDefault position={[5, 52, 70]} fov={56} near={0.1} far={500} />
       <OrbitControls
         enablePan enableZoom enableRotate
         minDistance={15} maxDistance={250}

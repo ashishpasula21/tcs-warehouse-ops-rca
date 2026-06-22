@@ -33,9 +33,9 @@ export function OperatorModel({ route, vestColor = '#f5d700', hatColor = '#f5d70
       return;
     }
 
-    // y = -0.16 keeps feet on the floor when the group is scaled to 2.0
-    // (leg capsule bottom sits at local y=0.08; 0.08 × 2.0 − 0.16 = 0 world y)
-    groupRef.current.position.set(state.x, -0.13, state.z);
+    // leg capsule bottom at local y=0.08; 0.08 × scale − offset = 0 world y
+    // scale=2.2 → offset=0.176 ≈ 0.18
+    groupRef.current.position.set(state.x, -0.18, state.z);
 
     const diff    = state.angle - currentAngle.current;
     const wrapped = ((diff + Math.PI) % (2 * Math.PI)) - Math.PI;
@@ -62,7 +62,7 @@ export function OperatorModel({ route, vestColor = '#f5d700', hatColor = '#f5d70
   });
 
   return (
-    <group ref={groupRef} scale={[1.65, 1.65, 1.65]}>
+    <group ref={groupRef} scale={[2.2, 2.2, 2.2]}>
       {/* Legs */}
       <group ref={legRef}>
         {([-0.14, 0.14] as const).map((ox, i) => (

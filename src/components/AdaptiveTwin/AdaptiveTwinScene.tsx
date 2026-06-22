@@ -1028,6 +1028,631 @@ function RackWallLive({zPos,flip,stateRef}:{zPos:number;flip:boolean;stateRef:Re
   );
 }
 
+// ─── Bulk Storage Rack (static, extends depth beyond ASRS zone) ──────────────
+// Additional pallet racking rows at z=±17 and ±22 — same visual style as RackWall
+function BulkStorageRack({zPos,flip,levels=5}:{zPos:number;flip:boolean;levels?:number}) {
+  const dz = flip ? -0.28 : 0.28;
+  const BULK_LEVELS = levels;
+  const BULK_LH = LEVEL_H;
+  const BULK_H = BULK_LEVELS * BULK_LH;
+  const BOX_COLORS = ['#c8924a','#b87c38','#d4a462','#bf8430','#c8924a','#d4a462'];
+  return (
+    <group>
+      {Array.from({length:BAYS+1},(_,i)=>{
+        const bx = RACK_X0 + i*BAY_W;
+        return (
+          <mesh key={i} position={[bx, BULK_H/2, zPos]}>
+            <boxGeometry args={[0.14, BULK_H+0.3, 0.14]} />
+            <meshStandardMaterial color="#6e6e6e" metalness={0.7} roughness={0.3} />
+          </mesh>
+        );
+      })}
+      {Array.from({length:BULK_LEVELS+1},(_,l)=>(
+        <mesh key={l} position={[(RACK_X0+RACK_X1)/2, l*BULK_LH, zPos]}>
+          <boxGeometry args={[RACK_SPAN+0.1, 0.10, 0.10]} />
+          <meshStandardMaterial color="#c04a00" metalness={0.5} roughness={0.4} />
+        </mesh>
+      ))}
+      {Array.from({length:BULK_LEVELS},(_,l)=>
+        Array.from({length:BAYS},(_,b)=>{
+          if((l*5+b*3+Math.abs(zPos))%7===0) return null;
+          return (
+            <mesh key={`${l}-${b}`}
+                  position={[RACK_X0+(b+0.5)*BAY_W, l*BULK_LH+BULK_LH/2, zPos+dz]}>
+              <boxGeometry args={[BAY_W-0.38, BULK_LH-0.28, 0.58]} />
+              <meshStandardMaterial color={BOX_COLORS[(l*3+b*5)%BOX_COLORS.length]} roughness={0.88} />
+            </mesh>
+          );
+        })
+      )}
+    </group>
+  );
+}
+
+// ─── Side Warehouse Walls ─────────────────────────────────────────────────────
+// ─── Forklift charging dock ───────────────────────────────────────────────────
+// Two bays at z=0 (center between aisles). All equipment travels at z=±8 — z=0
+// is permanently clear. Forklifts park at FORKLIFT_PARK_X between trips.
+function ChargingDock() {
+  return (
+    <group position={[FORKLIFT_PARK_X + 2, 0, 0]}>
+      {([-2.8, 2.8] as const).map((zo, i) => (
+        <group key={i} position={[0, 0, zo]}>
+          <mesh position={[0, 2.5, 0]}>
+            <boxGeometry args={[2.0, 5.0, 1.2]} />
+            <meshStandardMaterial color="#374151" roughness={0.65} metalness={0.4} />
+          </mesh>
+          <mesh position={[0, 3.8, 0.62]}>
+            <boxGeometry args={[0.65, 0.28, 0.04]} />
+            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.2} />
+          </mesh>
+          <mesh position={[0, 1.4, 0.62]}>
+            <boxGeometry args={[2.0, 0.34, 0.04]} />
+            <meshStandardMaterial color="#f59e0b" roughness={0.5} />
+          </mesh>
+          <mesh position={[1.1, 0.1, 1.2]} rotation={[0, 0.4, 0]}>
+            <cylinderGeometry args={[0.08, 0.08, 2.6, 6]} />
+            <meshStandardMaterial color="#1f2937" roughness={0.9} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// ─── WMS supervisor workstation ───────────────────────────────────────────────
+// Sits just west of the ASRS receiving I/O at z=0. No equipment passes z=0.
+function WMSWorkstation() {
+  return (
+    <group position={[RECV_IO_X - 3, 0, 0]}>
+      <mesh position={[0, 0.9, 0]}>
+        <boxGeometry args={[1.6, 1.8, 4.2]} />
+        <meshStandardMaterial color="#4b5563" roughness={0.75} />
+      </mesh>
+      <mesh position={[0, 1.83, 0]}>
+        <boxGeometry args={[1.8, 0.1, 4.6]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.6} />
+      </mesh>
+      {([-1.1, 1.1] as const).map((zo, i) => (
+        <group key={i}>
+          <mesh position={[0.95, 3.2, zo]}>
+            <boxGeometry args={[0.1, 1.6, 2.2]} />
+            <meshStandardMaterial color="#111827" roughness={0.4} metalness={0.3} />
+          </mesh>
+          <mesh position={[0.94, 3.2, zo]}>
+            <boxGeometry args={[0.04, 1.4, 2.0]} />
+            <meshStandardMaterial color="#bfdbfe" emissive="#bfdbfe" emissiveIntensity={0.4} />
+          </mesh>
+        </group>
+      ))}
+      {/* Chair */}
+      <mesh position={[1.5, 1.12, 0]}>
+        <boxGeometry args={[1.0, 0.12, 1.0]} />
+        <meshStandardMaterial color="#1f2937" roughness={0.8} />
+      </mesh>
+      <mesh position={[1.5, 1.82, -0.5]}>
+        <boxGeometry args={[1.0, 1.2, 0.12]} />
+        <meshStandardMaterial color="#1f2937" roughness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── ASRS control server rack ──────────────────────────────────────────────────
+// Control electronics for ASRS. Placed at x=-27.5, z=0 — receiving area center.
+function ASRSServerRack({ x, z }: { x: number; z: number }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 2.2, 0]}>
+        <boxGeometry args={[0.9, 4.4, 0.65]} />
+        <meshStandardMaterial color="#111827" roughness={0.5} metalness={0.5} />
+      </mesh>
+      {[0.4, 1.0, 1.6, 2.2, 2.8, 3.4].map((y, ri) => (
+        <mesh key={ri} position={[0.47, y, 0]}>
+          <boxGeometry args={[0.04, 0.2, 0.52]} />
+          <meshStandardMaterial
+            color={ri % 2 === 0 ? '#22c55e' : '#3b82f6'}
+            emissive={ri % 2 === 0 ? '#22c55e' : '#3b82f6'}
+            emissiveIntensity={0.6}
+          />
+        </mesh>
+      ))}
+      <mesh position={[0, 4.52, 0]}>
+        <boxGeometry args={[1.0, 0.12, 0.75]} />
+        <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── Empty pallet storage stacks ──────────────────────────────────────────────
+// Three side-by-side stacks of bare wood pallets. Placed in receiving staging
+// area at z=±15 — outside worker z=±8 paths, west of any rack zone.
+function EmptyPalletStorage({ x, z }: { x: number; z: number }) {
+  const stacks = [
+    { xo: 0,   count: 14 },
+    { xo: 2.4, count: 12 },
+    { xo: 4.8, count: 13 },
+  ];
+  return (
+    <group position={[x, 0, z]}>
+      {stacks.map((s, si) => (
+        <group key={si} position={[s.xo, 0, 0]}>
+          {Array.from({ length: s.count }, (_, pi) => (
+            <mesh key={pi} position={[0, 0.1 + pi * 0.18, 0]}>
+              <boxGeometry args={[2.0, 0.16, 1.6]} />
+              <meshLambertMaterial color="#7a5c1a" />
+            </mesh>
+          ))}
+          {([-0.52, 0.52] as const).map((fb, fi) => (
+            <mesh key={fi} position={[fb, 0.07, 0]}>
+              <boxGeometry args={[0.12, 0.12, 1.6]} />
+              <meshLambertMaterial color="#6b4c15" />
+            </mesh>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// ─── QA / receiving inspection table ──────────────────────────────────────────
+// Where workers scan and verify inbound SKUs before ASRS put-away.
+// Placed at x=-33, z=0: well west of ASRS I/O, clear of z=±8 equipment lanes.
+function InspectionTable() {
+  return (
+    <group position={[-33, 0, 0]}>
+      <mesh position={[0, 2.2, 0]}>
+        <boxGeometry args={[5.0, 0.16, 2.5]} />
+        <meshStandardMaterial color="#fef3c7" roughness={0.6} />
+      </mesh>
+      {([[-1.8, -0.85], [-1.8, 0.85], [1.8, -0.85], [1.8, 0.85]] as const).map(([lx, lz], i) => (
+        <mesh key={i} position={[lx, 1.1, lz]}>
+          <boxGeometry args={[0.15, 2.2, 0.15]} />
+          <meshStandardMaterial color="#6b7280" metalness={0.6} roughness={0.3} />
+        </mesh>
+      ))}
+      {/* Under-table shelf */}
+      <mesh position={[0, 0.8, 0]}>
+        <boxGeometry args={[4.6, 0.1, 2.2]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.7} />
+      </mesh>
+      {/* Boxes being scanned */}
+      <mesh position={[-1.0, 2.55, 0.1]}>
+        <boxGeometry args={[1.2, 0.92, 1.0]} />
+        <meshStandardMaterial color="#c8924a" roughness={0.9} />
+      </mesh>
+      <mesh position={[1.0, 2.65, -0.1]}>
+        <boxGeometry args={[1.4, 1.1, 1.2]} />
+        <meshStandardMaterial color="#b87c38" roughness={0.9} />
+      </mesh>
+      {/* Barcode scanner stand */}
+      <mesh position={[-2.0, 3.4, 0]}>
+        <boxGeometry args={[0.14, 2.4, 0.14]} />
+        <meshStandardMaterial color="#374151" metalness={0.5} roughness={0.4} />
+      </mesh>
+      <mesh position={[-2.0, 4.55, 0]}>
+        <boxGeometry args={[0.9, 0.42, 0.52]} />
+        <meshStandardMaterial color="#0369a1" roughness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── Stretch wrap station ─────────────────────────────────────────────────────
+// Pallets are wrapped here before forklift loads them into outbound trucks.
+// x=+32 z=0: between the two staging areas at z=±8, 8 units from each aisle.
+// Palletizer arm at PAL_X_OFF=29, ARM_REACH=3 only reaches x=32 at z=±8 — clear.
+function StretchWrapStation() {
+  return (
+    <group position={[PAL_X_OFF + ARM_REACH, 0, 0]}>
+      <mesh position={[0, 0.22, 0]}>
+        <cylinderGeometry args={[1.6, 1.6, 0.44, 16]} />
+        <meshStandardMaterial color="#6b7280" roughness={0.7} metalness={0.5} />
+      </mesh>
+      <mesh position={[0, 0.57, 0]}>
+        <boxGeometry args={[2.1, 0.24, 1.9]} />
+        <meshStandardMaterial color="#7a5c1a" roughness={0.96} />
+      </mesh>
+      <mesh position={[0, 2.1, 0]}>
+        <cylinderGeometry args={[1.0, 1.0, 2.8, 14]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.5} transparent opacity={0.75} />
+      </mesh>
+      <mesh position={[1.85, 2.3, 0]}>
+        <cylinderGeometry args={[0.1, 0.1, 4.6, 8]} />
+        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[1.85, 1.3, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.28, 0.28, 0.45, 10]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.5} transparent opacity={0.6} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── Safety / first-aid cabinet ───────────────────────────────────────────────
+function SafetyStation({ x, z }: { x: number; z: number }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 2.0, 0]}>
+        <boxGeometry args={[0.45, 2.4, 1.4]} />
+        <meshStandardMaterial color="#dc2626" roughness={0.6} />
+      </mesh>
+      <mesh position={[0.24, 2.0, 0]}>
+        <boxGeometry args={[0.04, 0.9, 0.22]} />
+        <meshStandardMaterial color="white" roughness={0.5} />
+      </mesh>
+      <mesh position={[0.24, 2.0, 0]}>
+        <boxGeometry args={[0.04, 0.22, 0.9]} />
+        <meshStandardMaterial color="white" roughness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── South wall: long packaging / consumables rack ───────────────────────────
+// Runs east-west across the full rack zone width at z=-26, 4 units south of the
+// last bulk rack face (~z=-22.6). All equipment lives at z=±8 — completely clear.
+function SouthWallRack() {
+  const x0 = -18; const x1 = 12; const span = x1 - x0; // 30
+  const levels = 4; const lh = 2.5; const bays = 7;
+  const bw = span / bays;
+  const rollColors = ['#e5e7eb', '#fbbf24', '#d1d5db', '#f9a8d4', '#a3e635'];
+  return (
+    <group position={[0, 0, -26]}>
+      {Array.from({ length: bays + 1 }, (_, i) => (
+        <mesh key={i} position={[x0 + i * bw, (levels * lh) / 2, 0]}>
+          <boxGeometry args={[0.16, levels * lh + 0.3, 0.16]} />
+          <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.3} />
+        </mesh>
+      ))}
+      {Array.from({ length: levels + 1 }, (_, l) => (
+        <mesh key={l} position={[(x0 + x1) / 2, l * lh, 0]}>
+          <boxGeometry args={[span + 0.1, 0.10, 0.10]} />
+          <meshStandardMaterial color="#c04a00" metalness={0.5} roughness={0.4} />
+        </mesh>
+      ))}
+      {Array.from({ length: levels }, (_, l) =>
+        Array.from({ length: bays }, (_, b) => {
+          if ((l * 3 + b * 5) % 6 === 0) return null;
+          return (
+            <mesh key={`${l}-${b}`}
+              position={[x0 + (b + 0.5) * bw, l * lh + lh / 2, 0.32]}
+              rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[lh * 0.32, lh * 0.32, bw * 0.7, 10]} />
+              <meshStandardMaterial color={rollColors[(l * 2 + b) % rollColors.length]} roughness={0.65} />
+            </mesh>
+          );
+        })
+      )}
+    </group>
+  );
+}
+
+// ─── South wall: maintenance workbench (receiving side) ───────────────────────
+function SouthMaintenanceBench() {
+  return (
+    <group position={[-32, 0, -25]}>
+      {/* Body */}
+      <mesh position={[0, 1.3, 0]}>
+        <boxGeometry args={[6.5, 2.6, 2.5]} />
+        <meshStandardMaterial color="#4b5563" roughness={0.75} />
+      </mesh>
+      {/* Top surface */}
+      <mesh position={[0, 2.62, 0]}>
+        <boxGeometry args={[6.7, 0.18, 2.7]} />
+        <meshStandardMaterial color="#d4a765" roughness={0.6} />
+      </mesh>
+      {/* Vertical tool board on back wall */}
+      <mesh position={[0, 5.5, -1.0]}>
+        <boxGeometry args={[6.5, 5.0, 0.14]} />
+        <meshStandardMaterial color="#374151" roughness={0.7} />
+      </mesh>
+      {/* Tool silhouettes on board */}
+      {[-2.2, -0.6, 1.0, 2.6].map((xo, i) => (
+        <mesh key={i} position={[xo, 5.6, -0.93]}>
+          <boxGeometry args={[0.75, 2.2, 0.08]} />
+          <meshStandardMaterial color="#f59e0b" roughness={0.5} />
+        </mesh>
+      ))}
+      {/* Items on bench */}
+      <mesh position={[-1.6, 3.0, 0]}>
+        <boxGeometry args={[1.9, 0.65, 1.5]} />
+        <meshStandardMaterial color="#6b7280" roughness={0.6} metalness={0.3} />
+      </mesh>
+      <mesh position={[1.6, 3.1, 0.1]}>
+        <boxGeometry args={[1.4, 0.85, 1.3]} />
+        <meshStandardMaterial color="#374151" roughness={0.5} metalness={0.4} />
+      </mesh>
+      {/* Stool */}
+      <mesh position={[2.5, 1.4, 1.6]}>
+        <cylinderGeometry args={[0.5, 0.5, 0.1, 10]} />
+        <meshStandardMaterial color="#1f2937" roughness={0.8} />
+      </mesh>
+      <mesh position={[2.5, 0.7, 1.6]}>
+        <cylinderGeometry args={[0.08, 0.08, 1.3, 8]} />
+        <meshStandardMaterial color="#374151" metalness={0.5} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── South wall: cardboard baler / compactor (shipping side) ─────────────────
+function SouthBaler() {
+  return (
+    <group position={[42, 0, -25]}>
+      <mesh position={[0, 3.0, 0]}>
+        <boxGeometry args={[3.2, 6.0, 2.2]} />
+        <meshStandardMaterial color="#374151" roughness={0.65} metalness={0.45} />
+      </mesh>
+      {/* Feed chute */}
+      <mesh position={[0, 6.1, 1.15]}>
+        <boxGeometry args={[2.2, 1.6, 0.1]} />
+        <meshStandardMaterial color="#111827" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 6.9, 1.0]}>
+        <boxGeometry args={[2.6, 0.28, 0.45]} />
+        <meshStandardMaterial color="#4b5563" metalness={0.5} roughness={0.5} />
+      </mesh>
+      {/* Compressed bale */}
+      <mesh position={[0, 1.0, 2.0]}>
+        <boxGeometry args={[2.0, 1.6, 1.2]} />
+        <meshStandardMaterial color="#c8924a" roughness={0.95} />
+      </mesh>
+      {([-0.6, 0.6] as const).map((bx, bi) => (
+        <mesh key={bi} position={[bx, 1.0, 2.0]}>
+          <boxGeometry args={[0.07, 1.62, 1.24]} />
+          <meshStandardMaterial color="#6b7280" metalness={0.7} roughness={0.4} />
+        </mesh>
+      ))}
+      {/* Yellow hazard stripe */}
+      <mesh position={[0, 0.25, 0]}>
+        <boxGeometry args={[3.24, 0.35, 2.24]} />
+        <meshStandardMaterial color="#f59e0b" roughness={0.5} />
+      </mesh>
+      {/* Control panel */}
+      <mesh position={[1.65, 3.8, 0.3]}>
+        <boxGeometry args={[0.1, 1.3, 0.85]} />
+        <meshStandardMaterial color="#111827" roughness={0.4} metalness={0.3} />
+      </mesh>
+      <mesh position={[1.66, 3.8, 0.3]}>
+        <boxGeometry args={[0.04, 1.1, 0.7]} />
+        <meshStandardMaterial color="#bfdbfe" emissive="#bfdbfe" emissiveIntensity={0.3} />
+      </mesh>
+      <mesh position={[1.66, 4.6, 0.3]}>
+        <cylinderGeometry args={[0.1, 0.1, 0.06, 10]} />
+        <meshStandardMaterial color="#dc2626" emissive="#dc2626" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Recycling sign */}
+      <mesh position={[0, 5.2, 1.16]}>
+        <boxGeometry args={[2.2, 0.65, 0.08]} />
+        <meshStandardMaterial color="#16a34a" roughness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── North wall: supervisor / control booth ───────────────────────────────────
+// NW corner at x=-32, z=+26. Window faces south (toward warehouse interior).
+// x=-32 is west of rack zone (RACK_X0=-20), so no conflict with z=+22 bulk rack.
+function NorthControlBooth() {
+  return (
+    <group position={[-32, 0, 26]}>
+      {/* Walls */}
+      <mesh position={[0, 3.0, 0]}>
+        <boxGeometry args={[9.0, 6.0, 5.5]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.85} />
+      </mesh>
+      {/* Glass window facing south */}
+      <mesh position={[0, 3.8, -2.8]}>
+        <boxGeometry args={[7.0, 3.6, 0.12]} />
+        <meshStandardMaterial color="#bfdbfe" roughness={0.1} metalness={0.4} transparent opacity={0.55} />
+      </mesh>
+      {/* Roof cap */}
+      <mesh position={[0, 6.18, 0]}>
+        <boxGeometry args={[9.4, 0.30, 5.9]} />
+        <meshStandardMaterial color="#9ca3af" roughness={0.9} />
+      </mesh>
+      {/* Door (east side) */}
+      <mesh position={[4.55, 1.7, 1.0]}>
+        <boxGeometry args={[0.12, 3.4, 1.5]} />
+        <meshStandardMaterial color="#d97706" roughness={0.7} />
+      </mesh>
+      {/* Interior desk visible through window */}
+      <mesh position={[0, 2.0, -0.5]}>
+        <boxGeometry args={[5.0, 0.14, 1.8]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, 1.2, -0.5]}>
+        <boxGeometry args={[5.0, 1.6, 1.8]} />
+        <meshStandardMaterial color="#374151" roughness={0.7} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── North wall: electric pallet jack parking row ────────────────────────────
+// 4 PJs parked nose-first against the north wall at z=+26, spread along x.
+// Forks point toward wall (+z), so no equipment zone conflict.
+function NorthPalletJackRow() {
+  const xs = [-12, -6, 0, 6];
+  return (
+    <group position={[0, 0, 26]}>
+      {xs.map((xo, i) => (
+        <group key={i} position={[xo, 0, 0]}>
+          {/* Body */}
+          <mesh position={[0, 0.85, 0]}>
+            <boxGeometry args={[1.1, 1.0, 1.0]} />
+            <meshStandardMaterial color="#1e40af" roughness={0.65} metalness={0.2} />
+          </mesh>
+          {/* Control handle (angled) */}
+          <mesh position={[0, 1.75, -0.55]} rotation={[Math.PI / 5, 0, 0]}>
+            <boxGeometry args={[0.14, 1.6, 0.14]} />
+            <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.3} />
+          </mesh>
+          {/* Forks extending into wall */}
+          {([-0.32, 0.32] as const).map((xf, fi) => (
+            <mesh key={fi} position={[xf, 0.14, 1.5]}>
+              <boxGeometry args={[0.15, 0.11, 3.0]} />
+              <meshStandardMaterial color="#374151" metalness={0.5} roughness={0.4} />
+            </mesh>
+          ))}
+          {/* Drive wheels */}
+          {([-0.38, 0.38] as const).map((xw, wi) => (
+            <mesh key={wi} position={[xw, 0.2, -0.5]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.2, 0.2, 0.2, 10]} />
+              <meshStandardMaterial color="#1e293b" roughness={0.9} />
+            </mesh>
+          ))}
+          {/* Charging LED */}
+          <mesh position={[0.57, 1.0, 0]}>
+            <boxGeometry args={[0.04, 0.22, 0.32]} />
+            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.0} />
+          </mesh>
+        </group>
+      ))}
+      {/* Charging rail strip connecting all bays */}
+      <mesh position={[0, 0.18, -0.55]}>
+        <boxGeometry args={[22, 0.12, 0.3]} />
+        <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── North wall: parts / tool storage rack (shipping side) ───────────────────
+// East half of north wall: x=+18 to +48, z=+26. East of rack zone (RACK_X1=+14).
+function NorthPartsRack() {
+  const x0 = 18; const x1 = 48; const span = x1 - x0; // 30
+  const levels = 4; const lh = 2.5; const bays = 5;
+  const bw = span / bays;
+  const boxColors = ['#c8924a', '#b87c38', '#d4a462', '#bf8430', '#6b7280'];
+  return (
+    <group position={[0, 0, 26]}>
+      {Array.from({ length: bays + 1 }, (_, i) => (
+        <mesh key={i} position={[x0 + i * bw, (levels * lh) / 2, 0]}>
+          <boxGeometry args={[0.16, levels * lh + 0.3, 0.16]} />
+          <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.3} />
+        </mesh>
+      ))}
+      {Array.from({ length: levels + 1 }, (_, l) => (
+        <mesh key={l} position={[(x0 + x1) / 2, l * lh, 0]}>
+          <boxGeometry args={[span + 0.1, 0.10, 0.10]} />
+          <meshStandardMaterial color="#c04a00" metalness={0.5} roughness={0.4} />
+        </mesh>
+      ))}
+      {Array.from({ length: levels }, (_, l) =>
+        Array.from({ length: bays }, (_, b) => {
+          if ((l * 5 + b * 3) % 7 === 0) return null;
+          return (
+            <mesh key={`${l}-${b}`}
+              position={[x0 + (b + 0.5) * bw, l * lh + lh / 2, -0.32]}>
+              <boxGeometry args={[bw * 0.8, lh * 0.78, 0.65]} />
+              <meshLambertMaterial color={boxColors[(l * 2 + b) % boxColors.length]} />
+            </mesh>
+          );
+        })
+      )}
+    </group>
+  );
+}
+
+// ─── Green improvement beacon (appears when a scenario is active) ─────────────
+function ATBeacon({ x, z, r = 5 }: { x: number; z: number; r?: number }) {
+  const ringRef  = useRef<THREE.Mesh>(null);
+  const ring2Ref = useRef<THREE.Mesh>(null);
+  const ring3Ref = useRef<THREE.Mesh>(null);
+  const beamRef  = useRef<THREE.Mesh>(null);
+  const phase    = useRef(Math.random() * Math.PI * 2);
+  const color    = '#22c55e';
+  const emissive = '#16a34a';
+
+  useFrame((_, delta) => {
+    phase.current += delta * 2.6;
+    const pulse  = 0.5 + 0.5 * Math.sin(phase.current);
+    const pulse2 = 0.5 + 0.5 * Math.sin(phase.current + Math.PI);
+    const pulse3 = 0.5 + 0.5 * Math.sin(phase.current + Math.PI * 0.5);
+
+    if (ringRef.current) {
+      const mat = ringRef.current.material as THREE.MeshStandardMaterial;
+      mat.opacity = 0.42 + 0.55 * pulse;
+      ringRef.current.scale.setScalar(0.84 + 0.24 * pulse);
+    }
+    if (ring2Ref.current) {
+      const mat = ring2Ref.current.material as THREE.MeshStandardMaterial;
+      mat.opacity = 0.28 + 0.42 * pulse2;
+      ring2Ref.current.scale.setScalar(1.0 + 0.32 * pulse2);
+    }
+    if (ring3Ref.current) {
+      const mat = ring3Ref.current.material as THREE.MeshStandardMaterial;
+      mat.opacity = 0.10 + 0.22 * pulse3;
+      ring3Ref.current.scale.setScalar(1.04 + 0.38 * pulse3);
+    }
+    if (beamRef.current) {
+      const mat = beamRef.current.material as THREE.MeshStandardMaterial;
+      mat.opacity = 0.42 + 0.52 * pulse;
+    }
+  });
+
+  return (
+    <group position={[x, 0, z]}>
+      {/* Outer halo */}
+      <mesh ref={ring3Ref} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <ringGeometry args={[r * 0.9, r * 1.45, 48]} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={0.35}
+          transparent opacity={0.12} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Outer expanding ring */}
+      <mesh ref={ring2Ref} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+        <ringGeometry args={[r * 0.78, r * 1.1, 48]} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={0.9}
+          transparent opacity={0.28} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Inner solid ring */}
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
+        <ringGeometry args={[r * 0.52, r * 0.76, 48]} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={1.8}
+          transparent opacity={0.72} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Ground disc fill */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+        <circleGeometry args={[r * 0.5, 40]} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={0.55}
+          transparent opacity={0.18} depthWrite={false} />
+      </mesh>
+      {/* Vertical light beam */}
+      <mesh ref={beamRef} position={[0, 10, 0]}>
+        <cylinderGeometry args={[0.6, 2.0, 20, 16, 1, true]} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={1.6}
+          transparent opacity={0.42} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Top cap glow */}
+      <mesh position={[0, 20.5, 0]}>
+        <sphereGeometry args={[1.6, 12, 12]} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={5.5}
+          transparent opacity={1.0} />
+      </mesh>
+      {/* Point light */}
+      <pointLight color={color} intensity={20} distance={r * 5.5} decay={1.5} position={[0, 2, 0]} />
+      {/* Map pin pole */}
+      <mesh position={[0, 0.5, 0]}>
+        <cylinderGeometry args={[0.12, 0.12, 1.0, 8]} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={2.5} />
+      </mesh>
+      {/* Pin head */}
+      <mesh position={[0, 1.35, 0]}>
+        <sphereGeometry args={[0.42, 14, 14]} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={3.5} roughness={0.2} />
+      </mesh>
+      {/* Check mark symbol */}
+      <mesh position={[-0.05, 1.32, 0.44]} rotation={[0, 0, -0.5]}>
+        <boxGeometry args={[0.1, 0.36, 0.06]} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={2} />
+      </mesh>
+    </group>
+  );
+}
+
 // ─── Per-aisle coordinator ────────────────────────────────────────────────────
 function AisleSystem({aisleZ,recvColor,shipColor,delay=0}:{aisleZ:number;recvColor:string;shipColor:string;delay?:number}) {
   const { atScenario } = useSimulationStore();
@@ -1062,20 +1687,66 @@ function AisleSystem({aisleZ,recvColor,shipColor,delay=0}:{aisleZ:number;recvCol
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 function SceneContents() {
+  const atScenario = useSimulationStore(s => s.atScenario);
+
+  // Beacon positions keyed by scenario — placed at the zone the AI fix improves
+  const beacons: { x: number; z: number; r: number }[] = [];
+  if (atScenario === 'at-conveyor-fix') {
+    const cx = (SHIP_IO_X + CONV_END_X) / 2;   // conveyor mid-point ≈ 21
+    AISLE_Z.forEach(z => beacons.push({ x: cx, z, r: 5 }));
+  } else if (atScenario === 'at-palletizer-cal') {
+    AISLE_Z.forEach(z => beacons.push({ x: PAL_X_OFF, z, r: 4 }));
+  } else if (atScenario === 'at-mission-seq') {
+    const cx = (RACK_X0 + RACK_X1) / 2;        // ASRS rack centre ≈ -3
+    AISLE_Z.forEach(z => beacons.push({ x: cx, z, r: 6 }));
+  }
+
   return (
     <>
       <color attach="background" args={['#b8ccd8']} />
       <fog attach="fog" args={['#b8ccd8',130,240]} />
       <Lighting />
       <Floor />
-      {/* Outer rack walls — static (no ASRS activity on outer face) */}
+      {/* Outer ASRS rack walls */}
       <RackWall zPos={RACK_OUTER_Z[0]} flip={true}  />
       <RackWall zPos={RACK_OUTER_Z[1]} flip={false} />
+      {/* Extended bulk storage racks — fills empty outer zone */}
+      <BulkStorageRack zPos={-17}  flip={false} levels={5} />
+      <BulkStorageRack zPos={-22}  flip={true}  levels={4} />
+      <BulkStorageRack zPos={+17}  flip={true}  levels={5} />
+      <BulkStorageRack zPos={+22}  flip={false} levels={4} />
       {/* Inner rack walls are rendered live inside each AisleSystem */}
       <DockWall side="recv" />
       <DockWall side="ship" />
       <AisleSystem aisleZ={AISLE_Z[0]} recvColor="#dc6b19" shipColor="#1d4ed8" delay={0}   />
       <AisleSystem aisleZ={AISLE_Z[1]} recvColor="#b45309" shipColor="#1e40af" delay={4.5} />
+
+      {/* ── Center-aisle structures (z=0, clear of equipment at z=±8) ── */}
+      <WMSWorkstation />
+      <ASRSServerRack x={RECV_IO_X - 5.5} z={0} />
+      <InspectionTable />
+      <EmptyPalletStorage x={-34} z={-15} />
+      <EmptyPalletStorage x={-34} z={+15} />
+      <SafetyStation x={RECV_DOCK_X + 2.5} z={0} />
+      <ChargingDock />
+      <StretchWrapStation />
+      <SafetyStation x={SHIP_DOCK_X - 2.5} z={0} />
+      <ASRSServerRack x={RECV_IO_X - 7.5} z={+13} />
+      <ASRSServerRack x={RECV_IO_X - 7.5} z={-13} />
+
+      {/* ── Outer south wall (z ≈ -25 to -26) — clear of z=±8 equipment ── */}
+      <SouthWallRack />
+      <SouthMaintenanceBench />
+      <SouthBaler />
+
+      {/* ── Outer north wall (z ≈ +25 to +26) — clear of z=±8 equipment ── */}
+      <NorthControlBooth />
+      <NorthPalletJackRow />
+      <NorthPartsRack />
+
+      {/* Improvement zone beacons — visible when an AT scenario is active */}
+      {beacons.map((b, i) => <ATBeacon key={i} x={b.x} z={b.z} r={b.r} />)}
+
       <OrbitControls target={[0,5,0]} minDistance={22} maxDistance={130}
         minPolarAngle={0.12} maxPolarAngle={Math.PI/2.05} />
     </>

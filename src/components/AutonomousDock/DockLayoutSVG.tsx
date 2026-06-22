@@ -71,12 +71,11 @@ function RecvTruck({
   }
 
   if (!truck) {
-    // Empty dock — draw faint dock leveler
+    // Empty dock — draw faint dock leveler only (no text, R-label is rendered separately)
     return (
       <g>
         <rect x={txRight - 12} y={ty + th * 0.3} width={12} height={th * 0.4} rx={2}
           fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1} strokeDasharray="3 2" />
-        <text x={txRight - 22} y={y + 4} textAnchor="middle" fontSize={8} fill="#9ca3af">idle</text>
       </g>
     );
   }
@@ -388,16 +387,16 @@ export function DockLayoutSVG({ phase }: Props) {
             fill="#1e293b" stroke="#475569" strokeWidth={1} />
           <rect x={BL + 1} y={by - BAY_H / 2 + 3} width={WALL - 2} height={BAY_H - 6}
             fill="#0f172a" />
-          {/* Dock label */}
-          <text x={BL - 22} y={by + 4} textAnchor="middle" fontSize={8}
-            fontWeight={700} fill="#475569">R-{i + 1}</text>
+          {/* Dock label — placed inside the door opening so it never collides with truck text */}
+          <text x={BL + WALL / 2 + 1} y={by - BAY_H / 2 - 5} textAnchor="middle" fontSize={8}
+            fontWeight={700} fill="#94a3b8">R-{i + 1}</text>
           {/* Shipping door */}
           <rect x={BR - WALL - 1} y={by - BAY_H / 2} width={WALL + 2} height={BAY_H}
             fill="#1e293b" stroke="#475569" strokeWidth={1} />
           <rect x={BR - WALL + 1} y={by - BAY_H / 2 + 3} width={WALL - 2} height={BAY_H - 6}
             fill="#0f172a" />
-          <text x={BR + 22} y={by + 4} textAnchor="middle" fontSize={8}
-            fontWeight={700} fill="#475569">S-{i + 1}</text>
+          <text x={BR - WALL / 2 - 1} y={by - BAY_H / 2 - 5} textAnchor="middle" fontSize={8}
+            fontWeight={700} fill="#94a3b8">S-{i + 1}</text>
         </g>
       ))}
 
