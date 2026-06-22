@@ -68,12 +68,13 @@ const SUB_VIEWS: { id: SubView; label: string; Icon: typeof Activity }[] = [
 // ── Top Navigation Bar ────────────────────────────────────────────────────────
 function TopNav({
   mainTab, setMainTab, subView, setSubView, atSubView, setAtSubView,
-  adSubView, setAdSubView, onBackToNetwork,
+  adSubView, setAdSubView, dockPhase, onBackToNetwork,
 }: {
   mainTab: MainTab; setMainTab: (t: MainTab) => void;
   subView: SubView; setSubView: (v: SubView) => void;
   atSubView: ATSubView; setAtSubView: (v: ATSubView) => void;
   adSubView: ADSubView; setAdSubView: (v: ADSubView) => void;
+  dockPhase: 'baseline' | 'optimised';
   onBackToNetwork: () => void;
 }) {
   const { isPlaying, improvementScenario, atScenario } = useSimulationStore();
@@ -218,18 +219,20 @@ function TopNav({
                 </button>
               );
             })}
-            <button onClick={() => setAdSubView('kpi-impact')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '5px 14px', borderRadius: '6px 6px 0 0', fontSize: 12, fontWeight: 600,
-                cursor: 'pointer', border: 'none', transition: 'all 0.12s',
-                background: adSubView === 'kpi-impact' ? PAGE : 'transparent',
-                color: adSubView === 'kpi-impact' ? '#15803d' : '#16a34a',
-                borderBottom: adSubView === 'kpi-impact' ? `2px solid #16a34a` : '2px solid transparent',
-              }}>
-              <Zap size={12} />
-              KPI Impact
-            </button>
+            {dockPhase === 'optimised' && (
+              <button onClick={() => setAdSubView('kpi-impact')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '5px 14px', borderRadius: '6px 6px 0 0', fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', border: 'none', transition: 'all 0.12s',
+                  background: adSubView === 'kpi-impact' ? PAGE : 'transparent',
+                  color: adSubView === 'kpi-impact' ? '#15803d' : '#16a34a',
+                  borderBottom: adSubView === 'kpi-impact' ? `2px solid #16a34a` : '2px solid transparent',
+                }}>
+                <Zap size={12} />
+                KPI Impact
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2952,8 +2955,10 @@ function ADKPIImpactView({ dockPhase }: { dockPhase: 'baseline' | 'optimised' })
 }
 
 // ── Autonomous Dock — root router ─────────────────────────────────────────────
-function AutonomousDockView({ adSubView, setAdSubView }: { adSubView: ADSubView; setAdSubView: (v: ADSubView) => void }) {
-  const [dockPhase, setDockPhase] = useState<'baseline' | 'optimised'>('baseline');
+function AutonomousDockView({ adSubView, setAdSubView, dockPhase, setDockPhase }: {
+  adSubView: ADSubView; setAdSubView: (v: ADSubView) => void;
+  dockPhase: 'baseline' | 'optimised'; setDockPhase: (p: 'baseline' | 'optimised') => void;
+}) {
   return (
     <>
       {adSubView === 'live-ops'     && <ADLiveOpsView     setAdSubView={setAdSubView} />}
@@ -3052,30 +3057,34 @@ const STATUS_CFG: Record<WHStatus, { label: string; color: string; bg: string; d
   planned:  { label: 'PLANNED',  color: '#6b7280', bg: '#f9fafb', dot: '#9ca3af' },
 };
 
-function NetworkKPIBar() {
+function NetworkKPIBar({ activeScenario }: { activeScenario?: NetworkScenario }) {
+  const proj = activeScenario?.projectedKPIBar;
   const kpis = [
-    { label: 'Total Network Throughput', value: '1,847', unit: 'cases/hr', trend: '+6.2%', up: true },
-    { label: 'Active Warehouses',        value: '1',     unit: 'of 4',    trend: '',       up: true },
-    { label: 'Network Utilisation',      value: '78%',   unit: 'avg',     trend: '-3pp',   up: false },
-    { label: 'Avg Cost per Case',        value: '$1.24', unit: '/case',   trend: '-$0.08', up: true },
-    { label: 'Open Alerts',             value: '4',     unit: 'total',   trend: '',       up: false },
-    { label: 'Fleet Active',            value: '18',    unit: 'trucks',  trend: '',       up: true },
+    { label: 'Total Network Throughput', value: proj ? proj.throughput          : '1,847', unit: 'cases/hr', trend: proj ? '' : '+6.2%', up: true },
+    { label: 'Active Warehouses',        value: '1',                                        unit: 'of 4',    trend: '',                  up: true },
+    { label: 'Network Utilisation',      value: proj ? proj.utilisation         : '78%',    unit: 'avg',     trend: proj ? '' : '-3pp',  up: false },
+    { label: 'Avg Cost per Case',        value: proj ? proj.costPerCase         : '$1.24',  unit: '/case',   trend: proj ? '' : '-$0.08',up: true },
+    { label: 'Order Fill Rate',          value: proj ? proj.fillRate            : '91%',    unit: '',        trend: '',                  up: true },
+    { label: 'Fleet Active',            value: '18',                                        unit: 'trucks',  trend: '',                  up: true },
   ];
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 0,
-      background: CARD, borderBottom: `1px solid ${BORDER}`,
+      background: proj ? `${activeScenario!.tagColor}06` : CARD,
+      borderBottom: `1px solid ${proj ? activeScenario!.tagColor + '33' : BORDER}`,
+      transition: 'background 0.3s ease',
     }}>
       {kpis.map(({ label, value, unit, trend, up }, i) => (
         <div key={i} style={{
           padding: '14px 20px',
-          borderRight: i < 5 ? `1px solid ${BORDER}` : 'none',
+          borderRight: i < 5 ? `1px solid ${proj ? activeScenario!.tagColor + '22' : BORDER}` : 'none',
         }}>
           <div style={{ fontSize: 10, fontWeight: 600, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
             {label}
+            {proj && <span style={{ marginLeft: 5, fontSize: 8, fontWeight: 700, color: activeScenario!.tagColor, letterSpacing: '0.04em' }}>PROJ</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: T1, letterSpacing: '-0.02em' }}>{value}</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: proj ? activeScenario!.tagColor : T1, letterSpacing: '-0.02em' }}>{value}</span>
             <span style={{ fontSize: 11, color: T3, fontWeight: 500 }}>{unit}</span>
           </div>
           {trend && (
@@ -3225,6 +3234,9 @@ interface NetworkScenario {
   kpis: ScenarioKPI[];
   recommendation: string;
   severity: 'critical' | 'opportunity' | 'warning';
+  story: string[];
+  affectedWHs: string[];
+  projectedKPIBar?: { throughput: string; utilisation: string; costPerCase: string; fillRate: string };
 }
 
 const NETWORK_SCENARIOS: NetworkScenario[] = [
@@ -3236,6 +3248,13 @@ const NETWORK_SCENARIOS: NetworkScenario[] = [
     description: 'Simulate Warehouse 1 going fully offline — equipment failure or weather event. No alternative live sites available.',
     icon: AlertTriangle,
     severity: 'critical',
+    affectedWHs: ['wh-1'],
+    story: [
+      'Warehouse 1 (Chicago) is the network\'s only live site. A full outage drops throughput to zero immediately.',
+      '312 open orders across 14 customers have no fulfilment path. Backlog accumulates at 1,847 cases/hr.',
+      'Without emergency 3PL activation within 6 hours, next-day SLAs breach for all Midwest accounts.',
+    ],
+    projectedKPIBar: { throughput: '0', utilisation: '0%', costPerCase: 'N/A', fillRate: '0%' },
     recommendation: 'Activate Warehouse 3 on emergency basis + engage 3PL overflow. Estimated recovery: 4.2 days at current backlog rate.',
     kpis: [
       { label: 'Network Throughput',  before: '1,847 cases/hr', after: '0 cases/hr',    delta: '−100%',   positive: false },
@@ -3254,11 +3273,18 @@ const NETWORK_SCENARIOS: NetworkScenario[] = [
     description: 'Bring Warehouse 2 online at 60% capacity, redistributing 40% of Warehouse 1 volume to reduce congestion.',
     icon: Zap,
     severity: 'opportunity',
+    affectedWHs: ['wh-1', 'wh-2'],
+    story: [
+      'WH-1 (Chicago) is running at 78% utilisation. Activating WH-2 (Indianapolis) at 60% capacity offloads 40% of volume.',
+      'Network throughput jumps to 2,890 cases/hr. WH-1 congestion eases to 48%, eliminating weekend overtime.',
+      'Break-even on go-live setup cost at day 12. Sustained $0.06/case improvement applies to the full network.',
+    ],
+    projectedKPIBar: { throughput: '2,890', utilisation: '54%', costPerCase: '$1.18', fillRate: '96%' },
     recommendation: 'Proceed with early go-live. Break-even on setup cost at day 12. Network cost/case improves by $0.06 sustainably.',
     kpis: [
       { label: 'Network Throughput',  before: '1,847 cases/hr', after: '2,890 cases/hr', delta: '+57%',    positive: true  },
       { label: 'Cost per Case',       before: '$1.24',           after: '$1.18',          delta: '−$0.06',  positive: true  },
-      { label: 'WH-1 Utilisation',     before: '78%',             after: '48%',            delta: '−30pp',   positive: true  },
+      { label: 'WH-1 Utilisation',    before: '78%',             after: '48%',            delta: '−30pp',   positive: true  },
       { label: 'Order Fill Rate',     before: '91%',             after: '96%',            delta: '+5pp',    positive: true  },
       { label: 'Dock Utilisation',    before: '83%',             after: '71%',            delta: '−12pp',   positive: true  },
       { label: 'Daily Go-Live Cost',  before: '$0',              after: '+$14K/day',      delta: '+$14K',   positive: false },
@@ -3272,6 +3298,13 @@ const NETWORK_SCENARIOS: NetworkScenario[] = [
     description: 'Simulate a 40% demand spike across all nodes — peak season or promotional event. Warehouse 1 is the sole active site.',
     icon: TrendingUp,
     severity: 'warning',
+    affectedWHs: ['wh-1'],
+    story: [
+      'A +40% demand event (peak season or promo) requires 2,586 cases/hr. WH-1 can only deliver 1,847 — a 739 case/hr gap.',
+      'Without intervention, ~48 late shipments accumulate daily. Congestion score hits 94/100, triggering dock delays.',
+      'Adding a 3rd shift at WH-1 closes 84% of the gap. Activating WH-2 closes it entirely and absorbs future spikes.',
+    ],
+    projectedKPIBar: { throughput: '1,847', utilisation: '94%', costPerCase: '$1.56', fillRate: '71%' },
     recommendation: 'Add 3rd shift at Warehouse 1 (+620 cases/hr) + activate Warehouse 2. Without action, 739 cases/hr backlog accumulates daily.',
     kpis: [
       { label: 'Required Throughput', before: '1,847 cases/hr', after: '2,586 cases/hr', delta: '+40%',    positive: false },
@@ -3325,6 +3358,30 @@ function ScenarioPanel({ scenario, onClose }: { scenario: NetworkScenario; onClo
           background: 'none', border: 'none', cursor: 'pointer',
           color: T3, fontSize: 18, padding: '0 4px', lineHeight: 1,
         }}>✕</button>
+      </div>
+
+      {/* Network Story */}
+      <div style={{
+        background: `${scenario.tagColor}07`,
+        border: `1px solid ${scenario.tagColor}22`,
+        borderRadius: 10, padding: '14px 18px', marginBottom: 16,
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: scenario.tagColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+          Network Story
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {scenario.story.map((line, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{
+                flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
+                background: `${scenario.tagColor}18`, border: `1px solid ${scenario.tagColor}33`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, fontWeight: 800, color: scenario.tagColor, marginTop: 1,
+              }}>{i + 1}</span>
+              <span style={{ fontSize: 12, color: T2, lineHeight: 1.55 }}>{line}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* KPI grid */}
@@ -3412,19 +3469,53 @@ function projectKPIs(p: TwinParams) {
   return { throughput, costPerCase, goLiveWeeks, util };
 }
 
+// Free-type number input that only validates on blur / Enter
+function NumInput({ value, min, max, step = 1, color = '#1d4ed8', width = 72, onChange }: {
+  value: number; min: number; max: number; step?: number;
+  color?: string; width?: number; onChange: (v: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => { setText(String(value)); }, [value]);
+  const commit = (s: string) => {
+    const n = parseFloat(s);
+    const clamped = isNaN(n) ? value : Math.min(max, Math.max(min, Math.round(n / step) * step));
+    onChange(clamped);
+    setText(String(clamped));
+  };
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={text}
+      onChange={e => setText(e.target.value)}
+      onBlur={() => commit(text)}
+      onKeyDown={e => { if (e.key === 'Enter') { commit(text); (e.target as HTMLInputElement).blur(); } }}
+      style={{
+        width, padding: '3px 7px', borderRadius: 6,
+        border: '1.5px solid #cbd5e1', fontSize: 11, fontWeight: 800,
+        color, textAlign: 'right', outline: 'none', background: '#fff',
+        cursor: 'text',
+      }}
+    />
+  );
+}
+
 function Slider({ label, value, min, max, step = 1, unit, onChange }: {
   label: string; value: number; min: number; max: number; step?: number;
   unit: string; onChange: (v: number) => void;
 }) {
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: T2 }}>{label}</span>
-        <span style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8' }}>{value.toLocaleString()} {unit}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <NumInput value={value} min={min} max={max} step={step} width={72} onChange={onChange} />
+          <span style={{ fontSize: 10, color: T3 }}>{unit}</span>
+        </div>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
-        style={{ width: '100%', accentColor: '#1d4ed8', cursor: 'pointer' }} />
+        style={{ width: '100%', cursor: 'pointer' }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
         <span style={{ fontSize: 9, color: T3 }}>{min.toLocaleString()} {unit}</span>
         <span style={{ fontSize: 9, color: T3 }}>{max.toLocaleString()} {unit}</span>
@@ -3463,6 +3554,29 @@ function BuildTwinModal({ onClose, onCreated }: {
       background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <style>{`
+        input[type="range"] {
+          -webkit-appearance: none; appearance: none;
+          height: 5px; border-radius: 3px; background: #e2e8f0; outline: none; cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+          height: 5px; border-radius: 3px; background: #e2e8f0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none; appearance: none;
+          width: 16px; height: 16px; border-radius: 50%;
+          background: #1d4ed8; cursor: pointer; margin-top: -5.5px;
+          box-shadow: 0 1px 4px rgba(29,78,216,0.35);
+        }
+        input[type="range"]::-moz-range-track {
+          height: 5px; border-radius: 3px; background: #e2e8f0;
+        }
+        input[type="range"]::-moz-range-thumb {
+          width: 16px; height: 16px; border-radius: 50%;
+          background: #1d4ed8; cursor: pointer; border: none;
+          box-shadow: 0 1px 4px rgba(29,78,216,0.35);
+        }
+      `}</style>
       <div style={{
         width: 740, maxHeight: '90vh', overflow: 'auto',
         background: CARD, border: `1px solid ${BORDER}`,
@@ -3628,13 +3742,16 @@ function BuildTwinModal({ onClose, onCreated }: {
                     { label: 'Zone C — Low-Vel',  key: 'zoneC' as const, color: '#7c3aed' },
                   ].map(({ label, key, color }) => (
                     <div key={key}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                         <span style={{ fontSize: 10, fontWeight: 600, color: T2 }}>{label}</span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color }}>{params[key]}%</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <NumInput value={params[key]} min={5} max={80} step={1} color={color} width={52} onChange={v => setP(key, v)} />
+                          <span style={{ fontSize: 10, color: T3 }}>%</span>
+                        </div>
                       </div>
                       <input type="range" min={5} max={80} value={params[key]}
                         onChange={e => setP(key, Number(e.target.value))}
-                        style={{ width: '100%', accentColor: color, cursor: 'pointer' }} />
+                        style={{ width: '100%', cursor: 'pointer', accentColor: color }} />
                     </div>
                   ))}
                 </div>
@@ -3835,11 +3952,7 @@ function MidwestMapView({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const activeSc = NETWORK_SCENARIOS.find(s => s.id === activeScenarioId);
-  const isScAffected = (whId: string) => !!(activeSc && (
-    (activeSc.id === 'austin-outage'  && whId === 'wh-1') ||
-    (activeSc.id === 'chicago-golive' && (whId === 'wh-1' || whId === 'wh-2')) ||
-    (activeSc.id === 'demand-surge'   && whId === 'wh-1')
-  ));
+  const isScAffected = (whId: string) => !!(activeSc && activeSc.affectedWHs.includes(whId));
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -3915,23 +4028,20 @@ function MidwestMapView({
 
         {/* State name labels */}
         {([
-          [-89.0, 46.5,  'Minnesota',  '27'],
-          [-89.8, 44.5,  'Wisconsin',  '55'],
-          [-84.5, 44.0,  'Michigan',   '26'],
-          [-93.5, 42.0,  'Iowa',       '19'],
-          [-89.2, 40.0,  'Illinois',   '17'],
-          [-86.2, 40.0,  'Indiana',    '18'],
-          [-82.5, 40.2,  'Ohio',       '39'],
-          [-92.5, 38.5,  'Missouri',   '29'],
-          [-85.5, 37.8,  'Kentucky',   '21'],
-          [-86.8, 32.8,  'Alabama',    '01'],
-        ] as [number, number, string, string][])
-          .filter(([,,, id]) => MIDWEST_IDS.has(id) || ['21'].includes(id))
-          .map(([lon, lat, name]) => (
-            <Annotation key={name} subject={[lon, lat]} dx={0} dy={0} connectorProps={{}}>
-              <text textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight={700} fill="#1e293b" style={{ pointerEvents: 'none' }}>{name}</text>
-            </Annotation>
-          ))}
+          [-94.2, 46.4, 'Minnesota'],
+          [-89.8, 44.4, 'Wisconsin'],
+          [-85.0, 43.8, 'Michigan'],
+          [-93.5, 42.0, 'Iowa'],
+          [-89.2, 40.0, 'Illinois'],
+          [-86.2, 40.0, 'Indiana'],
+          [-82.5, 40.2, 'Ohio'],
+          [-92.5, 38.5, 'Missouri'],
+          [-85.5, 37.8, 'Kentucky'],
+        ] as [number, number, string][]).map(([lon, lat, name]) => (
+          <Marker key={name} coordinates={[lon, lat]}>
+            <text textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight={700} fill="#1e293b" style={{ pointerEvents: 'none' }}>{name}</text>
+          </Marker>
+        ))}
 
         {/* Reference city dots */}
         {([
@@ -3966,7 +4076,10 @@ function MidwestMapView({
                 onMouseEnter={() => setHovered(wh.id)}
                 onMouseLeave={() => setHovered(null)}
                 style={{ cursor: 'pointer' }}>
-                {scAff && <circle cy={-8} r={24} fill={scColor} opacity={0.2} />}
+                {scAff && <>
+                  <circle cy={-8} r={22} fill={scColor} style={{ animation: 'scenarioPulse 1.6s ease-in-out infinite' }} />
+                  <circle cy={-8} r={34} fill={scColor} style={{ animation: 'scenarioPulse2 1.6s ease-in-out infinite' }} />
+                </>}
                 {(isSelected || isHov) && (
                   <circle cy={-8} r={19} fill="none" stroke={cfg.fill} strokeWidth={2.5} opacity={0.45} />
                 )}
@@ -3991,25 +4104,32 @@ function MidwestMapView({
           );
         })}
 
-        {/* Compass rose */}
-        <Marker coordinates={[-80.5, 48.2]}>
-          <g>
-            <circle r={16} fill="rgba(255,255,255,0.82)" stroke="#b8c8d8" strokeWidth={1} />
-            <path d="M 0,-13 L 3.5,-6 L 0,-8 L -3.5,-6 Z" fill="#1d4ed8" />
-            <path d="M 0,13 L 3.5,6 L 0,8 L -3.5,6 Z" fill="#94a3b8" />
-            <path d="M -13,0 L -6,3.5 L -8,0 L -6,-3.5 Z" fill="#94a3b8" />
-            <path d="M 13,0 L 6,3.5 L 8,0 L 6,-3.5 Z" fill="#94a3b8" />
-            <text y={-16} textAnchor="middle" fontSize={7} fontWeight={800} fill="#1d4ed8">N</text>
-          </g>
-        </Marker>
       </ComposableMap>
+
+      {/* Compass rose — fixed to bottom-right of map container */}
+      <div style={{
+        position: 'absolute', bottom: 16, right: 16,
+        width: 38, height: 38, pointerEvents: 'none',
+      }}>
+        <svg width={38} height={38} viewBox="-19 -19 38 38">
+          <circle r={16} fill="rgba(255,255,255,0.88)" stroke="#b8c8d8" strokeWidth={1} />
+          <path d="M 0,-13 L 3.5,-6 L 0,-8 L -3.5,-6 Z" fill="#1d4ed8" />
+          <path d="M 0,13 L 3.5,6 L 0,8 L -3.5,6 Z" fill="#94a3b8" />
+          <path d="M -13,0 L -6,3.5 L -8,0 L -6,-3.5 Z" fill="#94a3b8" />
+          <path d="M 13,0 L 6,3.5 L 8,0 L 6,-3.5 Z" fill="#94a3b8" />
+          <text y={-17} textAnchor="middle" fontSize={7} fontWeight={800} fill="#1d4ed8">N</text>
+        </svg>
+      </div>
 
       {/* Hover Tooltip */}
       {hoveredWH && hoveredGeo && (
         <div style={{
           position: 'absolute',
-          left: Math.min(mousePos.x + 18, 600),
-          top: Math.max(mousePos.y - 110, 8),
+          left: (() => {
+            const cw = containerRef.current?.offsetWidth ?? 860;
+            return mousePos.x + 40 + 230 < cw ? mousePos.x + 40 : mousePos.x - 250;
+          })(),
+          top: Math.max(mousePos.y - 140, 52),
           background: 'rgba(8,14,28,0.93)',
           border: '1px solid rgba(255,255,255,0.13)',
           borderRadius: 11,
@@ -4054,6 +4174,40 @@ function MidwestMapView({
   );
 }
 
+// ── Volume Transfer helpers ───────────────────────────────────────────────────
+interface TransferOutput {
+  srcNewThroughput: number;
+  srcNewUtil: number;
+  tgtNewThroughput: number;
+  tgtNewUtil: number;
+  netThroughput: number;
+  netCostPerCase: number;
+  netFillRate: number;
+}
+
+function computeTransfer(src: WarehouseNode, tgt: WarehouseNode, pct: number): TransferOutput {
+  const vol = src.throughput * (pct / 100);
+  const srcNewThroughput = src.throughput - vol;
+  const srcNewUtil = src.utilisation * (1 - pct / 100);
+  const tgtMaxCap = (tgt.sqft / 320000) * (1847 / 0.78);
+  const tgtNewThroughput = Math.min(vol, tgtMaxCap * 0.90);
+  const tgtNewUtil = (tgtNewThroughput / tgtMaxCap) * 100;
+  const netThroughput = srcNewThroughput + tgtNewThroughput;
+  const utilizationSaving = (src.utilisation - srcNewUtil) * 0.004;
+  const newSitePremium = tgt.status !== 'live' ? 0.09 * (tgtNewThroughput / netThroughput) : 0;
+  const netCostPerCase = Math.max(src.costPerCase - utilizationSaving + newSitePremium, 0.80);
+  const fillRate = Math.min(91 + (src.utilisation - srcNewUtil) * 0.15, 99);
+  return {
+    srcNewThroughput: Math.round(srcNewThroughput),
+    srcNewUtil: Math.round(srcNewUtil * 10) / 10,
+    tgtNewThroughput: Math.round(tgtNewThroughput),
+    tgtNewUtil: Math.round(tgtNewUtil * 10) / 10,
+    netThroughput: Math.round(netThroughput),
+    netCostPerCase: Math.round(netCostPerCase * 100) / 100,
+    netFillRate: Math.round(fillRate * 10) / 10,
+  };
+}
+
 // ── Warehouse Side Panel ──────────────────────────────────────────────────────
 const PANEL_SCENARIOS: Array<{
   id: string;
@@ -4083,6 +4237,23 @@ function WHSidePanel({
   const geo  = WH_GEO[wh.id];
   const scfg = STATUS_CFG[wh.status];
   const isLive = wh.status === 'live';
+
+  const otherWHs = WAREHOUSES.filter(w => w.id !== wh.id);
+  const [tferTgtId, setTferTgtId] = useState<string>(otherWHs[0]?.id ?? '');
+  const [tferPct, setTferPct] = useState<number>(30);
+  const [tferResult, setTferResult] = useState<TransferOutput | null>(null);
+  const [tferRunning, setTferRunning] = useState(false);
+
+  function runTransfer() {
+    const tgt = WAREHOUSES.find(w => w.id === tferTgtId);
+    if (!tgt || !isLive) return;
+    setTferResult(null);
+    setTferRunning(true);
+    setTimeout(() => {
+      setTferResult(computeTransfer(wh, tgt, tferPct));
+      setTferRunning(false);
+    }, 900);
+  }
 
   const kpis = isLive
     ? [
@@ -4240,6 +4411,167 @@ function WHSidePanel({
             })}
           </div>
         </div>
+
+        {/* Volume Transfer Simulation */}
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${BORDER}` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Volume Transfer Simulator
+          </div>
+
+          {!isLive ? (
+            <div style={{ fontSize: 11, color: T3, padding: '10px 12px', background: PAGE, borderRadius: 8, border: `1px solid ${BORDER}` }}>
+              Only available for live warehouses.
+            </div>
+          ) : (
+            <>
+              {/* Source label */}
+              <div style={{ fontSize: 10, color: T3, marginBottom: 8 }}>
+                From: <strong style={{ color: T1 }}>{wh.name} ({geo?.city})</strong>
+              </div>
+
+              {/* Target select */}
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 9, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 4 }}>
+                  To Warehouse
+                </label>
+                <select
+                  value={tferTgtId}
+                  onChange={e => { setTferTgtId(e.target.value); setTferResult(null); }}
+                  style={{
+                    width: '100%', padding: '7px 10px', borderRadius: 7,
+                    border: `1px solid ${BORDER}`, background: PAGE, color: T1,
+                    fontSize: 12, fontWeight: 600, outline: 'none',
+                  }}
+                >
+                  {otherWHs.map(w => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} · {WH_GEO[w.id]?.city} [{STATUS_CFG[w.status].label}]
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Percentage slider */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Transfer Volume</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <NumInput value={tferPct} min={5} max={80} step={1} width={46}
+                      onChange={v => { setTferPct(v); setTferResult(null); }} />
+                    <span style={{ fontSize: 10, color: T3 }}>%</span>
+                  </div>
+                </div>
+                <input
+                  type="range" min={5} max={80} step={5} value={tferPct}
+                  onChange={e => { setTferPct(Number(e.target.value)); setTferResult(null); }}
+                  style={{ width: '100%', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: T3 }}>
+                  <span>5%</span><span>80%</span>
+                </div>
+              </div>
+
+              {/* Run button */}
+              <button
+                onClick={runTransfer}
+                disabled={tferRunning}
+                style={{
+                  width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
+                  background: tferRunning ? '#94a3b8' : '#1d4ed8', color: '#fff',
+                  fontSize: 12, fontWeight: 700, cursor: tferRunning ? 'default' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  transition: 'background 0.15s',
+                }}
+              >
+                {tferRunning ? (
+                  <>
+                    <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
+                    Running…
+                  </>
+                ) : (
+                  <><Play size={10} fill="#fff" /> Run Simulation</>
+                )}
+              </button>
+
+              {/* Results */}
+              {tferResult && (() => {
+                const tgt = WAREHOUSES.find(w => w.id === tferTgtId)!;
+                const tgtGeo = WH_GEO[tferTgtId];
+                return (
+                  <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                      Projected Impact · {tferPct}% transferred
+                    </div>
+
+                    {/* Source row */}
+                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#b91c1c', textTransform: 'uppercase', marginBottom: 6 }}>
+                        {wh.name} (Source)
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        {[
+                          { label: 'Throughput', before: `${wh.throughput.toLocaleString()}`, after: `${tferResult.srcNewThroughput.toLocaleString()}/hr` },
+                          { label: 'Utilisation', before: `${wh.utilisation}%`, after: `${tferResult.srcNewUtil}%` },
+                        ].map(({ label, before, after }) => (
+                          <div key={label}>
+                            <div style={{ fontSize: 8, color: '#b91c1c', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
+                            <div style={{ fontSize: 9, color: '#64748b', textDecoration: 'line-through' }}>{before}</div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b' }}>{after}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Target row */}
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', marginBottom: 6 }}>
+                        {tgt.name} · {tgtGeo?.city} (Target)
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        <div>
+                          <div style={{ fontSize: 8, color: '#166534', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Throughput</div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b' }}>{tferResult.tgtNewThroughput.toLocaleString()}/hr</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 8, color: '#166534', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Utilisation</div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b' }}>{tferResult.tgtNewUtil}%</div>
+                        </div>
+                      </div>
+                      {tgt.status !== 'live' && (
+                        <div style={{ fontSize: 9, color: '#d97706', fontWeight: 600, marginTop: 4 }}>⚠ Requires early activation</div>
+                      )}
+                    </div>
+
+                    {/* Network summary */}
+                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', marginBottom: 6 }}>
+                        Network Impact
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                        <div>
+                          <div style={{ fontSize: 8, color: '#1e40af', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Throughput</div>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{tferResult.netThroughput.toLocaleString()}/hr</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 8, color: '#1e40af', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Cost/Case</div>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: '#1e293b' }}>${tferResult.netCostPerCase.toFixed(2)}</div>
+                          <div style={{ fontSize: 8, fontWeight: 700, color: tferResult.netCostPerCase < wh.costPerCase ? GREEN : RED }}>
+                            {tferResult.netCostPerCase < wh.costPerCase ? '↓' : '↑'} ${Math.abs(tferResult.netCostPerCase - wh.costPerCase).toFixed(2)}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 8, color: '#1e40af', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Fill Rate</div>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{tferResult.netFillRate}%</div>
+                          <div style={{ fontSize: 8, fontWeight: 700, color: GREEN }}>↑ +{(tferResult.netFillRate - 91).toFixed(1)}pp</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Footer */}
@@ -4248,7 +4580,7 @@ function WHSidePanel({
         borderTop: `1px solid ${BORDER}`,
         fontSize: 10, color: T3, textAlign: 'center',
       }}>
-        Click a scenario to run a network simulation
+        Click a scenario or run a transfer simulation
       </div>
     </div>
   );
@@ -4328,8 +4660,45 @@ function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void 
         </div>
       </div>
 
+      {/* Scenario-active banner */}
+      {scenarioResult && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '9px 28px', flexShrink: 0,
+          background: `${scenarioResult.tagColor}0e`,
+          borderBottom: `1.5px solid ${scenarioResult.tagColor}44`,
+        }}>
+          <span style={{
+            display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+            background: scenarioResult.tagColor,
+            boxShadow: `0 0 0 3px ${scenarioResult.tagColor}33`,
+            animation: 'spin 2s linear infinite',
+          }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: scenarioResult.tagColor }}>
+            SIMULATION ACTIVE
+          </span>
+          <span style={{ fontSize: 11, color: scenarioResult.tagColor, opacity: 0.8 }}>
+            · {scenarioResult.title}
+          </span>
+          <span style={{ fontSize: 10, color: scenarioResult.tagColor, opacity: 0.6, marginLeft: 4 }}>
+            — Projected KPIs shown below. No live data is affected.
+          </span>
+          <button
+            onClick={() => setActiveScenario(null)}
+            style={{
+              marginLeft: 'auto', background: 'none', cursor: 'pointer',
+              border: `1px solid ${scenarioResult.tagColor}44`,
+              borderRadius: 6, padding: '3px 10px',
+              fontSize: 10, fontWeight: 700, color: scenarioResult.tagColor,
+            }}
+          >
+            Clear Simulation
+          </button>
+        </div>
+      )}
+
       {/* Network KPI bar */}
-      <NetworkKPIBar />
+      <NetworkKPIBar activeScenario={scenarioResult ?? undefined} />
 
       {/* Main content */}
       <div style={{ flex: 1, padding: '28px 28px', overflow: 'auto' }}>
@@ -4397,88 +4766,59 @@ function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void 
           </div>
         </div>
 
-        {/* ── Scenario Simulation ─────────────────────────────────────────── */}
-        <div style={{ marginTop: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: T1, letterSpacing: '-0.02em' }}>
-                Scenario Simulation
-              </h2>
-              <p style={{ margin: '2px 0 0', fontSize: 11, color: T2 }}>
-                Model what-if events across your warehouse network and see projected KPI impact
-              </p>
-            </div>
-            {running && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, color: '#7c3aed' }}>
-                <span style={{
-                  display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
-                  border: '2px solid #7c3aed', borderTopColor: 'transparent',
-                  animation: 'spin 0.7s linear infinite',
-                }} />
-                Running simulation…
-              </div>
-            )}
-          </div>
-
-          {/* Scenario cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            {NETWORK_SCENARIOS.map(sc => {
-              const Icon = sc.icon;
-              const isActive = activeScenario === sc.id;
-              return (
-                <div
-                  key={sc.id}
-                  onClick={() => isActive ? setActiveScenario(null) : runScenario(sc.id)}
-                  style={{
-                    background: isActive ? `${sc.tagColor}0c` : CARD,
-                    border: `1.5px solid ${isActive ? sc.tagColor + '66' : BORDER}`,
-                    borderRadius: 12, padding: '16px 18px', cursor: 'pointer',
-                    transition: 'all 0.18s ease',
-                    transform: isActive ? 'translateY(-1px)' : 'none',
-                    boxShadow: isActive ? `0 4px 16px ${sc.tagColor}18` : CARDSH,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                      background: `${sc.tagColor}12`, border: `1px solid ${sc.tagColor}33`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Icon size={14} color={sc.tagColor} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: T1, lineHeight: 1.2 }}>{sc.title}</div>
-                      <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: sc.tagColor }}>{sc.tag}</span>
-                    </div>
-                  </div>
-                  <p style={{ margin: 0, fontSize: 11, color: T2, lineHeight: 1.5 }}>
-                    {sc.description}
-                  </p>
-                  <div style={{
-                    marginTop: 12, display: 'flex', alignItems: 'center', gap: 6,
-                    fontSize: 11, fontWeight: 700,
-                    color: isActive ? sc.tagColor : T3,
-                  }}>
-                    {isActive ? (
-                      <><CheckCircle size={12} color={sc.tagColor} /> Results shown below — click to close</>
-                    ) : (
-                      <><Play size={10} fill="currentColor" /> Run Scenario</>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Results panel */}
-          {scenarioResult && (
-            <ScenarioPanel scenario={scenarioResult} onClose={() => setActiveScenario(null)} />
-          )}
-        </div>
       </div>
 
-      {/* Spin keyframe */}
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      {/* Keyframes + global slider styles */}
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes scenarioPulse {
+          0%, 100% { opacity: 0.22; r: 22; }
+          50%       { opacity: 0.55; r: 30; }
+        }
+        @keyframes scenarioPulse2 {
+          0%, 100% { opacity: 0.10; r: 34; }
+          50%       { opacity: 0.30; r: 44; }
+        }
+        input[type="range"] {
+          -webkit-appearance: none;
+          appearance: none;
+          height: 5px;
+          border-radius: 3px;
+          background: #e2e8f0;
+          outline: none;
+          cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+          height: 5px;
+          border-radius: 3px;
+          background: #e2e8f0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #1d4ed8;
+          cursor: pointer;
+          margin-top: -5.5px;
+          box-shadow: 0 1px 4px rgba(29,78,216,0.35);
+        }
+        input[type="range"]::-moz-range-track {
+          height: 5px;
+          border-radius: 3px;
+          background: #e2e8f0;
+        }
+        input[type="range"]::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #1d4ed8;
+          cursor: pointer;
+          border: none;
+          box-shadow: 0 1px 4px rgba(29,78,216,0.35);
+        }
+      `}</style>
 
       {/* New site success banner */}
       {newSite && (
@@ -4638,9 +4978,11 @@ export default function App() {
   const [subView, setSubView]           = useState<SubView>('overview');
   const [atSubView, setAtSubView]       = useState<ATSubView>('live');
   const [adSubView, setAdSubView]       = useState<ADSubView>('live-ops');
+  const [dockPhase, setDockPhase]       = useState<'baseline' | 'optimised'>('baseline');
   const { improvementScenario }         = useSimulationStore();
 
   const effectiveSubView: SubView = (subView === 'kpi-impact' && !improvementScenario) ? 'overview' : subView;
+  const effectiveAdSubView: ADSubView = (adSubView === 'kpi-impact' && dockPhase !== 'optimised') ? 'simulation' : adSubView;
 
   if (appView === 'home') {
     return <HomePage onEnter={() => setAppView('network')} />;
@@ -4656,7 +4998,8 @@ export default function App() {
         mainTab={mainTab} setMainTab={setMainTab}
         subView={effectiveSubView} setSubView={setSubView}
         atSubView={atSubView} setAtSubView={setAtSubView}
-        adSubView={adSubView} setAdSubView={setAdSubView}
+        adSubView={effectiveAdSubView} setAdSubView={setAdSubView}
+        dockPhase={dockPhase}
         onBackToNetwork={() => setAppView('network')}
       />
 
@@ -4673,7 +5016,7 @@ export default function App() {
         <AdaptiveTwinView atSubView={atSubView} setAtSubView={setAtSubView} />
       )}
       {mainTab === 'autonomous-dock' && (
-        <AutonomousDockView adSubView={adSubView} setAdSubView={setAdSubView} />
+        <AutonomousDockView adSubView={effectiveAdSubView} setAdSubView={setAdSubView} dockPhase={dockPhase} setDockPhase={setDockPhase} />
       )}
     </div>
   );
