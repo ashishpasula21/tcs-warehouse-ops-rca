@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import { ComposableMap, Geographies, Geography, Marker, Annotation } from 'react-simple-maps';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -3895,7 +3897,7 @@ function MidwestMapView({
 
         {/* All states grey, white borders */}
         <Geographies geography={GEO_URL}>
-          {({ geographies }) => geographies.map(geo => (
+          {({ geographies }: { geographies: any[] }) => geographies.map((geo: any) => (
             <Geography
               key={geo.rsmKey}
               geography={geo}
