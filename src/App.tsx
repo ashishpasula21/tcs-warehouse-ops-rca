@@ -225,8 +225,8 @@ function TopNav({
         </div>
       )}
 
-      {/* Secondary bar — sub-tabs (only for warehouse-ops) */}
-      {mainTab === 'warehouse-ops' && (
+      {/* Secondary bar — sub-tabs (only for warehouse-ops, hidden during simulation) */}
+      {mainTab === 'warehouse-ops' && subView !== 'simulation' && (
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 24px', height: 40 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
             {SUB_VIEWS.filter(v => v.id !== 'simulation').map(({ id, label, Icon }) => {
