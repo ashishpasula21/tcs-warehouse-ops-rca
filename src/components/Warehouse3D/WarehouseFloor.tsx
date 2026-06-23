@@ -1,5 +1,7 @@
 // Industrial warehouse — FlexSim/AnyLogic-quality visuals
 // Light concrete floor, tall pallet racking with orange beams, yellow safety lines, white trucks
+import { useRef, useMemo, useLayoutEffect } from 'react';
+import * as THREE from 'three';
 import { Text } from '@react-three/drei';
 
 const WALL_H      = 10;
@@ -381,8 +383,9 @@ function WrapStations() {
 
 // Safety/first-aid stations on walls
 function SafetyStations() {
+  // Flush against side walls (inner face at ±73.75; cabinet half-x = 0.375 at scale 1.5)
   const positions: [number, number, number][] = [
-    [-70, 0, -10], [70, 0, 10], [-70, 0, 15], [70, 0, -15],
+    [-73, 0, -10], [73, 0, 10], [-73, 0, 15], [73, 0, -15],
   ];
   return (
     <group>
@@ -715,10 +718,11 @@ function EmptyPalletStacks() {
 // Large floor-standing fans on wheeled bases, placed near dock doors for air
 // circulation. Positioned against side walls clear of all equipment routes.
 function DockFans() {
+  // Flush against side walls (inner face at ±73.75; base half-x = 0.825 at scale 1.5)
   const positions: Array<[number, number]> = [
-    [-67, -34], // west side, receiving — east of side wall, clear of ChargingStation at x=-62,z=-24
-    [+70, -30], // east side, receiving
-    [+70, +30], // east side, shipping
+    [-73, -34], // west side, receiving
+    [+73, -30], // east side, receiving
+    [+73, +30], // east side, shipping
   ];
   return (
     <group>
@@ -777,9 +781,10 @@ function DockFans() {
 // compressed bales. Placed between dock doors against the south/north walls.
 // Positions confirmed clear of all equipment routes (all equipment max z=±29).
 function CardboardBaler() {
+  // pz = ±37.4 places baler body back face flush with wall inner face (±38.75)
   const positions: Array<[number, number]> = [
-    [+45, -37], // receiving east — east of door 3 (x=+8), east of FL2 range (x≤+28)
-    [-42, +37], // shipping west — west of door 1 (x=-30), east of ControlBooth (x≥-62)
+    [+45, -37.4], // receiving east — east of door 3 (x=+8), east of FL2 range (x≤+28)
+    [-42, +37.4], // shipping west — west of door 1 (x=-30), east of ControlBooth (x≥-62)
   ];
   return (
     <group>
@@ -847,7 +852,277 @@ function CardboardBaler() {
   );
 }
 
+// ── Instanced Rack Boxes (400 individual draw calls → 4) ─────────────────────
+function StaticRackBoxes() {
+  const levelH = RACK_H / RACK_LEVELS;  // 2.6 — same for main and shipping buffer racks
+  const boxArgs: [number, number, number] = [RACK_W - 0.28, levelH * 0.74, BAY_SPACING - 0.4];
+  const meshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
+
+  const colorGroups = useMemo(() => {
+    const groups: [number, number, number][][] = BOX_COLORS.map(() => []);
+    // Main racks
+    for (const rackX of RACK_ROWS) {
+      for (let bi = 0; bi < BAY_FRAMES - 1; bi++) {
+        for (let li = 0; li < RACK_LEVELS; li++) {
+          if (_dynSlotSet.has(`${rackX}:${bi}:${li}`)) continue;
+          if ((((bi * 7 + li * 11 + rackX * 3) % 10 + 10) % 10) <= 1) continue;
+          groups[(bi + li) % BOX_COLORS.length].push([
+            rackX,
+            li * levelH + levelH * 0.48,
+            Z_STORAGE_S + bi * BAY_SPACING + BAY_SPACING / 2,
+          ]);
+        }
+      }
+    }
+    // Shipping buffer racks (same box geometry and levelH)
+    for (const rackX of SHIP_RACK_X) {
+      for (let bi = 0; bi < SHIP_BAY_FRAMES - 1; bi++) {
+        for (let li = 0; li < SHIP_LEVELS; li++) {
+          if ((((bi * 7 + li * 11 + rackX * 3) % 10 + 10) % 10) <= 1) continue;
+          groups[(bi + li) % BOX_COLORS.length].push([
+            rackX,
+            li * levelH + levelH * 0.48,
+            SHIP_Z_S + bi * BAY_SPACING + BAY_SPACING / 2,
+          ]);
+        }
+      }
+    }
+    return groups;
+  }, []);
+
+  useLayoutEffect(() => {
+    const mat = new THREE.Matrix4();
+    colorGroups.forEach((positions, ci) => {
+      const mesh = meshRefs.current[ci];
+      if (!mesh) return;
+      positions.forEach((pos, i) => {
+        mat.makeTranslation(pos[0], pos[1], pos[2]);
+        mesh.setMatrixAt(i, mat);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      {BOX_COLORS.map((color, ci) =>
+        colorGroups[ci].length > 0 ? (
+          <instancedMesh
+            key={ci}
+            ref={el => { meshRefs.current[ci] = el; }}
+            args={[undefined, undefined, colorGroups[ci].length]}
+            frustumCulled={false}
+          >
+            <boxGeometry args={boxArgs} />
+            <meshLambertMaterial color={color} />
+          </instancedMesh>
+        ) : null
+      )}
+    </>
+  );
+}
+
+// ── Instanced Empty Pallet Boards (~96 draw calls → 2) ───────────────────────
+function InstancedEmptyPallets() {
+  const boardRef    = useRef<THREE.InstancedMesh>(null);
+  const stringerRef = useRef<THREE.InstancedMesh>(null);
+
+  const { boards, stringers } = useMemo(() => {
+    const boards:    [number, number, number][] = [];
+    const stringers: [number, number, number][] = [];
+    // z = ±37.85 places pallet board face flush with wall inner face (±38.75)
+    const stacks: Array<{ x: number; z: number; count: number }> = [
+      { x: -35, z: -37.85, count: 13 },
+      { x:  30, z: -37.85, count: 11 },
+      { x: -15, z: +37.85, count: 12 },
+      { x:  30, z: +37.85, count: 14 },
+    ];
+    for (const { x: sx, z: sz, count } of stacks) {
+      for (let ti = 0; ti < 2; ti++) {
+        const xOff = ti * 2.4;
+        const cnt  = count - ti * 2;
+        for (let pi = 0; pi < cnt; pi++) {
+          boards.push([sx + xOff, 0.11 + pi * 0.2, sz]);
+        }
+        stringers.push([sx + xOff - 0.55, 0.07, sz]);
+        stringers.push([sx + xOff + 0.55, 0.07, sz]);
+      }
+    }
+    return { boards, stringers };
+  }, []);
+
+  useLayoutEffect(() => {
+    const mat = new THREE.Matrix4();
+    if (boardRef.current) {
+      boards.forEach((pos, i) => {
+        mat.makeTranslation(pos[0], pos[1], pos[2]);
+        boardRef.current!.setMatrixAt(i, mat);
+      });
+      boardRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (stringerRef.current) {
+      stringers.forEach((pos, i) => {
+        mat.makeTranslation(pos[0], pos[1], pos[2]);
+        stringerRef.current!.setMatrixAt(i, mat);
+      });
+      stringerRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      <instancedMesh ref={boardRef} args={[undefined, undefined, boards.length]} frustumCulled={false}>
+        <boxGeometry args={[2.1, 0.18, 1.8]} />
+        <meshLambertMaterial color="#7a5c1a" />
+      </instancedMesh>
+      <instancedMesh ref={stringerRef} args={[undefined, undefined, stringers.length]} frustumCulled={false}>
+        <boxGeometry args={[0.14, 0.14, 1.8]} />
+        <meshLambertMaterial color="#6b4c15" />
+      </instancedMesh>
+    </>
+  );
+}
+
+// ── Instanced Rack Structure (~390 draw calls → 6) ───────────────────────────
+// Step beam y = li * levelH + levelH * 0.11 − 0.05 places the beam top flush
+// with the box bottom (boxes are centered at li * levelH + levelH * 0.48,
+// half-height levelH * 0.37, so bottom = li * levelH + levelH * 0.11).
+function InstancedRackStructure() {
+  const mainUprightRef  = useRef<THREE.InstancedMesh>(null);
+  const mainBeamRef     = useRef<THREE.InstancedMesh>(null);
+  const mainStepRef     = useRef<THREE.InstancedMesh>(null);
+  const shipUprightRef  = useRef<THREE.InstancedMesh>(null);
+  const shipBeamRef     = useRef<THREE.InstancedMesh>(null);
+  const shipStepRef     = useRef<THREE.InstancedMesh>(null);
+
+  const levelH     = RACK_H / RACK_LEVELS;
+  const shipLevelH = SHIP_RACK_H / SHIP_LEVELS;
+
+  const { mainUprights, mainBeams, mainSteps, shipUprights, shipBeams, shipSteps } = useMemo(() => {
+    const mainUprights: [number, number, number][] = [];
+    const mainBeams:    [number, number, number][] = [];
+    const mainSteps:    [number, number, number][] = [];
+    const shipUprights: [number, number, number][] = [];
+    const shipBeams:    [number, number, number][] = [];
+    const shipSteps:    [number, number, number][] = [];
+
+    for (const rx of RACK_ROWS) {
+      for (let fi = 0; fi < BAY_FRAMES; fi++) {
+        mainUprights.push([rx - RACK_W / 2, RACK_H / 2, Z_STORAGE_S + fi * BAY_SPACING]);
+        mainUprights.push([rx + RACK_W / 2, RACK_H / 2, Z_STORAGE_S + fi * BAY_SPACING]);
+        // Step beams at levels 1..RACK_LEVELS (skip ground — boxes there rest on floor)
+        for (let li = 1; li <= RACK_LEVELS; li++) {
+          const beamY = li * levelH + levelH * 0.11 - 0.05;
+          mainSteps.push([rx, beamY, Z_STORAGE_S + fi * BAY_SPACING]);
+        }
+      }
+      for (let li = 0; li <= RACK_LEVELS; li++) {
+        mainBeams.push([rx - RACK_W / 2, li * levelH, Z_STORAGE_S + RACK_D / 2]);
+        mainBeams.push([rx + RACK_W / 2, li * levelH, Z_STORAGE_S + RACK_D / 2]);
+      }
+    }
+    for (const rx of SHIP_RACK_X) {
+      for (let fi = 0; fi < SHIP_BAY_FRAMES; fi++) {
+        shipUprights.push([rx - RACK_W / 2, SHIP_RACK_H / 2, SHIP_Z_S + fi * BAY_SPACING]);
+        shipUprights.push([rx + RACK_W / 2, SHIP_RACK_H / 2, SHIP_Z_S + fi * BAY_SPACING]);
+        for (let li = 1; li <= SHIP_LEVELS; li++) {
+          const beamY = li * shipLevelH + shipLevelH * 0.11 - 0.05;
+          shipSteps.push([rx, beamY, SHIP_Z_S + fi * BAY_SPACING]);
+        }
+      }
+      for (let li = 0; li <= SHIP_LEVELS; li++) {
+        shipBeams.push([rx - RACK_W / 2, li * shipLevelH, SHIP_Z_S + SHIP_RACK_D / 2]);
+        shipBeams.push([rx + RACK_W / 2, li * shipLevelH, SHIP_Z_S + SHIP_RACK_D / 2]);
+      }
+    }
+    return { mainUprights, mainBeams, mainSteps, shipUprights, shipBeams, shipSteps };
+  }, [levelH, shipLevelH]);
+
+  useLayoutEffect(() => {
+    const mat = new THREE.Matrix4();
+    const fill = (ref: React.RefObject<THREE.InstancedMesh | null>, pts: [number, number, number][]) => {
+      const m = ref.current; if (!m) return;
+      pts.forEach((p, i) => { mat.makeTranslation(p[0], p[1], p[2]); m.setMatrixAt(i, mat); });
+      m.instanceMatrix.needsUpdate = true;
+    };
+    fill(mainUprightRef, mainUprights);
+    fill(mainBeamRef,    mainBeams);
+    fill(mainStepRef,    mainSteps);
+    fill(shipUprightRef, shipUprights);
+    fill(shipBeamRef,    shipBeams);
+    fill(shipStepRef,    shipSteps);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      <instancedMesh ref={mainUprightRef} args={[undefined, undefined, mainUprights.length]} frustumCulled={false}>
+        <boxGeometry args={[0.1, RACK_H, 0.1]} />
+        <meshLambertMaterial color={UPRIGHT} />
+      </instancedMesh>
+      <instancedMesh ref={mainBeamRef} args={[undefined, undefined, mainBeams.length]} frustumCulled={false}>
+        <boxGeometry args={[0.08, 0.09, RACK_D]} />
+        <meshLambertMaterial color={BEAM_COLOR} />
+      </instancedMesh>
+      {/* Orange step beams: horizontal cross-members boxes rest on (1 per level per frame) */}
+      <instancedMesh ref={mainStepRef} args={[undefined, undefined, mainSteps.length]} frustumCulled={false}>
+        <boxGeometry args={[RACK_W, 0.1, 0.12]} />
+        <meshLambertMaterial color={BEAM_COLOR} />
+      </instancedMesh>
+      <instancedMesh ref={shipUprightRef} args={[undefined, undefined, shipUprights.length]} frustumCulled={false}>
+        <boxGeometry args={[0.1, SHIP_RACK_H, 0.1]} />
+        <meshLambertMaterial color={UPRIGHT} />
+      </instancedMesh>
+      <instancedMesh ref={shipBeamRef} args={[undefined, undefined, shipBeams.length]} frustumCulled={false}>
+        <boxGeometry args={[0.08, 0.09, SHIP_RACK_D]} />
+        <meshLambertMaterial color={BEAM_COLOR} />
+      </instancedMesh>
+      <instancedMesh ref={shipStepRef} args={[undefined, undefined, shipSteps.length]} frustumCulled={false}>
+        <boxGeometry args={[RACK_W, 0.1, 0.12]} />
+        <meshLambertMaterial color={BEAM_COLOR} />
+      </instancedMesh>
+    </>
+  );
+}
+
 // ── Public component ─────────────────────────────────────────────────────────
+// ── Personnel Door ────────────────────────────────────────────────────────────
+// Worker entry/exit on the east side wall (x=+73.75, z=+5).
+// Visual door frame cut into the wall at this position.
+function PersonnelDoor() {
+  const doorW = 1.6, doorH = 2.4, x = 73.5, z = 5;
+  return (
+    <group position={[x, 0, z]}>
+      {/* Dark opening (simulates wall cutout) */}
+      <mesh position={[0, doorH / 2, 0]}>
+        <boxGeometry args={[0.6, doorH, doorW]} />
+        <meshStandardMaterial color="#111" />
+      </mesh>
+      {/* Frame jambs */}
+      {([-doorW / 2 - 0.2, doorW / 2 + 0.2] as const).map((zo, i) => (
+        <mesh key={i} position={[0, doorH / 2, zo]}>
+          <boxGeometry args={[0.55, doorH + 0.1, 0.3]} />
+          <meshStandardMaterial color="#7a7a7a" metalness={0.5} roughness={0.5} />
+        </mesh>
+      ))}
+      {/* Lintel */}
+      <mesh position={[0, doorH + 0.15, 0]}>
+        <boxGeometry args={[0.55, 0.3, doorW + 0.5]} />
+        <meshStandardMaterial color="#7a7a7a" metalness={0.5} roughness={0.5} />
+      </mesh>
+      {/* Green entry LED strip */}
+      <mesh position={[0, doorH + 0.35, 0]}>
+        <boxGeometry args={[0.12, 0.12, doorW - 0.2]} />
+        <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={2.5} />
+      </mesh>
+      {/* Floor arrow — green arrow stripe pointing into warehouse */}
+      <mesh position={[-1.5, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[2, 0.5]} />
+        <meshStandardMaterial color="#22c55e" opacity={0.7} transparent />
+      </mesh>
+    </group>
+  );
+}
+
 export function WarehouseFloor() {
   return (
     <group>
@@ -874,11 +1149,8 @@ export function WarehouseFloor() {
       {/* Yellow safety stripes on aisles */}
       <AisleLines />
 
-      {/* Rack rows */}
-      {RACK_ROWS.map((x, i) => <RackRow key={i} x={x} />)}
-
-      {/* Shipping buffer racks — forward-pick zone at far-west/east columns only (no route conflicts) */}
-      {SHIP_RACK_X.map((x, i) => <ShippingBufferRack key={i} x={x} />)}
+      {/* Rack structure — uprights + beams instanced (was ~390 draw calls) */}
+      <InstancedRackStructure />
 
       {/* Walls with dock doors */}
       <Walls />
@@ -892,6 +1164,9 @@ export function WarehouseFloor() {
 
       {/* Trucks rendered by TruckSystem in WarehouseScene */}
 
+      <StaticRackBoxes />
+      <InstancedEmptyPallets />
+
       <StagingPallets />
       <ChargingStations />
       <WrapStations />
@@ -902,9 +1177,9 @@ export function WarehouseFloor() {
       <ConveyorSegment />
       <WeighManifestStation />
       <PackagingSupplyRack />
-      <EmptyPalletStacks />
       <DockFans />
       <CardboardBaler />
+      <PersonnelDoor />
 
     </group>
   );
@@ -923,106 +1198,7 @@ const SHIP_RACK_H   = SHIP_LEVELS * (RACK_H / RACK_LEVELS);         // 7.8
 // Safe x columns: far west ≤ -45, far east ≥ +56 (no E-W routes cross here in shipping zone)
 const SHIP_RACK_X: number[] = [-59, -49, -42, 56, 60];
 
-function ShippingBufferRack({ x }: { x: number }) {
-  const levelH = SHIP_RACK_H / SHIP_LEVELS;
-  const hasBox = (bi: number, li: number) =>
-    (((bi * 7 + li * 11 + x * 3) % 10 + 10) % 10) > 1;
-  const boxColor = (bi: number, li: number) => BOX_COLORS[(bi + li) % BOX_COLORS.length];
 
-  return (
-    <group position={[x, 0, SHIP_Z_S]}>
-      {/* Upright frames */}
-      {Array.from({ length: SHIP_BAY_FRAMES }, (_, fi) => (
-        <group key={`sf-${fi}`} position={[0, 0, fi * BAY_SPACING]}>
-          {([-RACK_W / 2, RACK_W / 2] as const).map((xOff, pi) => (
-            <mesh key={pi} position={[xOff, SHIP_RACK_H / 2, 0]}>
-              <boxGeometry args={[0.1, SHIP_RACK_H, 0.1]} />
-              <meshLambertMaterial color={UPRIGHT} />
-            </mesh>
-          ))}
-        </group>
-      ))}
-
-      {/* Orange horizontal beams */}
-      {Array.from({ length: SHIP_LEVELS + 1 }, (_, li) => (
-        <group key={`sb-${li}`} position={[0, li * levelH, SHIP_RACK_D / 2]}>
-          {([-RACK_W / 2, RACK_W / 2] as const).map((xOff, ri) => (
-            <mesh key={ri} position={[xOff, 0, 0]}>
-              <boxGeometry args={[0.08, 0.09, SHIP_RACK_D]} />
-              <meshLambertMaterial color={BEAM_COLOR} />
-            </mesh>
-          ))}
-        </group>
-      ))}
-
-      {/* Cardboard boxes */}
-      {Array.from({ length: SHIP_BAY_FRAMES - 1 }, (_, bi) =>
-        Array.from({ length: SHIP_LEVELS }, (_, li) =>
-          hasBox(bi, li) ? (
-            <mesh key={`sbx-${bi}-${li}`}
-              position={[0, li * levelH + levelH * 0.48, bi * BAY_SPACING + BAY_SPACING / 2]}>
-              <boxGeometry args={[RACK_W - 0.28, levelH * 0.74, BAY_SPACING - 0.4]} />
-              <meshLambertMaterial color={boxColor(bi, li)} />
-            </mesh>
-          ) : null
-        )
-      )}
-    </group>
-  );
-}
-
-// ── Rack Row ─────────────────────────────────────────────────────────────────
-function RackRow({ x }: { x: number }) {
-  const levelH = RACK_H / RACK_LEVELS;
-  const hasBox = (bi: number, li: number) =>
-    !_dynSlotSet.has(`${x}:${bi}:${li}`) && (((bi * 7 + li * 11 + x * 3) % 10 + 10) % 10) > 1;
-  const boxColor = (bi: number, li: number) => BOX_COLORS[(bi + li) % BOX_COLORS.length];
-
-  return (
-    <group position={[x, 0, Z_STORAGE_S]}>
-      {/* Upright frames every BAY_SPACING along Z — posts only, no diagonals */}
-      {Array.from({ length: BAY_FRAMES }, (_, fi) => {
-        const zPos = fi * BAY_SPACING;
-        return (
-          <group key={`frame-${fi}`} position={[0, 0, zPos]}>
-            {([-RACK_W / 2, RACK_W / 2] as const).map((xOff, pi) => (
-              <mesh key={pi} position={[xOff, RACK_H / 2, 0]}>
-                <boxGeometry args={[0.1, RACK_H, 0.1]} />
-                <meshLambertMaterial color={UPRIGHT} />
-              </mesh>
-            ))}
-          </group>
-        );
-      })}
-
-      {/* Orange horizontal beams at each level — run along full rack Z */}
-      {Array.from({ length: RACK_LEVELS + 1 }, (_, li) => (
-        <group key={`beams-${li}`} position={[0, li * levelH, RACK_D / 2]}>
-          {([-RACK_W / 2, RACK_W / 2] as const).map((xOff, ri) => (
-            <mesh key={ri} position={[xOff, 0, 0]}>
-              <boxGeometry args={[0.08, 0.09, RACK_D]} />
-              <meshLambertMaterial color={BEAM_COLOR} />
-            </mesh>
-          ))}
-        </group>
-      ))}
-
-      {/* Cardboard boxes on each shelf bay */}
-      {Array.from({ length: BAY_FRAMES - 1 }, (_, bi) =>
-        Array.from({ length: RACK_LEVELS }, (_, li) =>
-          hasBox(bi, li) ? (
-            <mesh key={`box-${bi}-${li}`}
-              position={[0, li * levelH + levelH * 0.48, bi * BAY_SPACING + BAY_SPACING / 2]}
-             >
-              <boxGeometry args={[RACK_W - 0.28, levelH * 0.74, BAY_SPACING - 0.4]} />
-              <meshLambertMaterial color={boxColor(bi, li)} />
-            </mesh>
-          ) : null
-        )
-      )}
-    </group>
-  );
-}
 
 // ── Yellow Safety Lines ───────────────────────────────────────────────────────
 function AisleLines() {
@@ -1249,10 +1425,7 @@ export function TruckModel({ x, z, facingNorth, loadPct = 0, truckType }: TruckP
           </mesh>
         ))
       )}
-      {/* Headlights */}
-      {([-1.6, 1.6] as const).map((xOff, k) => (
-        <pointLight key={k} position={[x + xOff, 2.5, cabZ + dir * 3.8]} color="#ffe8a0" intensity={1.2} distance={16} />
-      ))}
+      {/* Headlights removed — 12 point lights per frame was too expensive */}
       {/* Load indicator bar on trailer side */}
       <mesh position={[x + 2.7, TY, trailerZ]}>
         <boxGeometry args={[0.09, 5.8, 17.6]} />

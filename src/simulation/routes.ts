@@ -86,14 +86,22 @@ export function getEquipmentState(route: EquipmentRoute, globalMs: number): Equi
 // Open zones: z<-22 (receiving), z>+8 (staging/shipping) — free movement in x
 // Cross-aisle: z≈+11 — designated E-W passage
 
+// Forklift depot: each forklift parks at the south end of its own operating aisle
+// (z=-30, clear of racks which start at z=-22). All 4 are at the same z so they
+// visually form a single "parking row" across the receiving floor. Each drives
+// straight north into its aisle — no diagonal rack-zone crossings. Staggered
+// pauseMs creates a shift-start departure sequence.
+const DEPOT_Z = -30;
+
 // FL-1 (Mark Rivera): inbound receiving specialist — far-west dock.
 // RECV_DOORS[0]=x=-54. Picks up inbound pallet, carries north on Zone A aisle to far-west
 // racks, deposits, returns empty south to dock. Pure forward-and-back. Benchmark route.
 export const FL1_ROUTE: EquipmentRoute = {
   id: 'fl-1', speedUPerMs: 0.008, offsetMs: 0,
   waypoints: [
-    { x: -54, z: -26, pauseMs: 4000, task: 'RECEIVING', carryingLoad: true  }, // far-west dock: pick up inbound pallet
-    { x: -54, z: -10, pauseMs: 2800, task: 'PUTAWAY',   carryingLoad: false }, // Zone A: deposit, return empty
+    { x: -54, z: DEPOT_Z, pauseMs:  500, task: 'DEPOT',     carryingLoad: false }, // Zone A aisle south — departs first
+    { x: -54, z: -26,     pauseMs: 4000, task: 'RECEIVING', carryingLoad: true  }, // far-west dock: pick up inbound pallet
+    { x: -54, z: -10,     pauseMs: 2800, task: 'PUTAWAY',   carryingLoad: false }, // Zone A: deposit, return empty
   ],
 };
 
@@ -102,13 +110,14 @@ export const FL1_ROUTE: EquipmentRoute = {
 // Instead he detours EAST to Zone D (east aisle), wrong zone for these fast-moving items.
 // After depositing he returns via a long backtrack across the receiving area.
 export const FL2_ROUTE: EquipmentRoute = {
-  id: 'fl-2', speedUPerMs: 0.005, offsetMs: 9000,
+  id: 'fl-2', speedUPerMs: 0.005, offsetMs: 0,
   waypoints: [
-    { x:  0,  z: -26, pauseMs: 5500, task: 'RECEIVING', carryingLoad: true  }, // center dock: inbound pallet
-    { x: +28,  z: -26, pauseMs:    0, task: 'TRAVEL',   carryingLoad: true  }, // carries pallet EAST — wrong direction for Zone C
-    { x: +28,  z: -10, pauseMs: 3500, task: 'PUTAWAY',  carryingLoad: false }, // Zone D east aisle: deposits (WRONG zone — low-velocity)
-    { x: +28,  z: -26, pauseMs:    0, task: 'TRAVEL',   carryingLoad: false }, // returns south empty
-    { x:  0,   z: -26, pauseMs: 4000, task: 'IDLE',     carryingLoad: false }, // center dock: extended idle waiting for next task
+    { x:  0,  z: DEPOT_Z, pauseMs: 2000, task: 'DEPOT',     carryingLoad: false }, // Zone C south — departs second
+    { x:  0,  z: -26,     pauseMs: 5500, task: 'RECEIVING', carryingLoad: true  }, // center dock: inbound pallet
+    { x: +28, z: -26,     pauseMs:    0, task: 'TRAVEL',    carryingLoad: true  }, // carries pallet EAST — wrong direction for Zone C
+    { x: +28, z: -10,     pauseMs: 3500, task: 'PUTAWAY',   carryingLoad: false }, // Zone D east aisle: deposits (WRONG zone — low-velocity)
+    { x: +28, z: -26,     pauseMs:    0, task: 'TRAVEL',    carryingLoad: false }, // returns south empty
+    { x:  0,  z: -26,     pauseMs: 4000, task: 'IDLE',      carryingLoad: false }, // center dock: extended idle waiting for next task
   ],
 };
 
@@ -118,13 +127,14 @@ export const FL2_ROUTE: EquipmentRoute = {
 // PROBLEM BEHAVIOR: on the return trip she takes a diagonal shortcut that cuts
 // through the active pick-lane corridor (z≈+18, x=-8) where WALKER_1 is working.
 export const FL3_ROUTE: EquipmentRoute = {
-  id: 'fl-3', speedUPerMs: 0.007, offsetMs: 16500,
+  id: 'fl-3', speedUPerMs: 0.007, offsetMs: 0,
   waypoints: [
-    { x: -38, z:  -5, pauseMs: 4500, task: 'PICKING',  carryingLoad: true  }, // Zone B aisle: pick from rack shelf
-    { x: -38, z: +11, pauseMs:    0, task: 'TRAVEL',   carryingLoad: true  }, // Exit rack zone (cross-aisle)
-    { x:  -4, z: +18, pauseMs:    0, task: 'TRAVEL',   carryingLoad: true  }, // SHORTCUT: diagonals through WALKER_1 zone (x=-4)!
-    { x: -30, z: +29, pauseMs: 4000, task: 'SHIPPING', carryingLoad: false }, // S1 west dock: load truck
-    { x: -38, z: +11, pauseMs:    0, task: 'TRAVEL',   carryingLoad: false }, // Return south to cross-aisle
+    { x: -38, z: DEPOT_Z, pauseMs: 3500, task: 'DEPOT',    carryingLoad: false }, // Zone B aisle south — departs third
+    { x: -38, z:  -5,     pauseMs: 4500, task: 'PICKING',  carryingLoad: true  }, // Zone B aisle: pick from rack shelf
+    { x: -38, z: +11,     pauseMs:    0, task: 'TRAVEL',   carryingLoad: true  }, // Exit rack zone (cross-aisle)
+    { x:  -4, z: +18,     pauseMs:    0, task: 'TRAVEL',   carryingLoad: true  }, // SHORTCUT: diagonals through WALKER_1 zone (x=-4)!
+    { x: -30, z: +29,     pauseMs: 4000, task: 'SHIPPING', carryingLoad: false }, // S1 west dock: load truck
+    { x: -38, z: +11,     pauseMs:    0, task: 'TRAVEL',   carryingLoad: false }, // Return south to cross-aisle
   ],
 };
 
@@ -133,12 +143,13 @@ export const FL3_ROUTE: EquipmentRoute = {
 // carries the pallet north to S3 (SHIP_DOORS[2]=x=+49), loads the truck, and loops back.
 // Parks near the dock whenever the S3 truck is not present.
 export const FL4_ROUTE: EquipmentRoute = {
-  id: 'fl-4-base', speedUPerMs: 0.007, offsetMs: 14000,
+  id: 'fl-4-base', speedUPerMs: 0.007, offsetMs: 0,
   waypoints: [
-    { x: +49, z:  -5, pauseMs: 4500, task: 'PICKING',  carryingLoad: true  }, // Zone E aisle: pick from rack shelf
-    { x: +49, z: +11, pauseMs:    0, task: 'TRAVEL',   carryingLoad: true  }, // Exit rack zone (cross-aisle)
-    { x: +49, z: +29, pauseMs: 3500, task: 'SHIPPING', carryingLoad: false }, // S3 east dock: load truck
-    { x: +49, z: +11, pauseMs:    0, task: 'TRAVEL',   carryingLoad: false }, // Return south to rack zone
+    { x: +49, z: DEPOT_Z, pauseMs: 5000, task: 'DEPOT',    carryingLoad: false }, // Zone E aisle south — departs last
+    { x: +49, z:  -5,     pauseMs: 4500, task: 'PICKING',  carryingLoad: true  }, // Zone E aisle: pick from rack shelf
+    { x: +49, z: +11,     pauseMs:    0, task: 'TRAVEL',   carryingLoad: true  }, // Exit rack zone (cross-aisle)
+    { x: +49, z: +29,     pauseMs: 3500, task: 'SHIPPING', carryingLoad: false }, // S3 east dock: load truck
+    { x: +49, z: +11,     pauseMs:    0, task: 'TRAVEL',   carryingLoad: false }, // Return south to rack zone
   ],
 };
 

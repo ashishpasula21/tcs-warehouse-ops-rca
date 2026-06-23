@@ -35,7 +35,6 @@ export function PalletJack({ route, beaconColor }: PalletJackProps) {
 
   return (
     <group ref={groupRef} scale={[1.4, 1.4, 1.4]}>
-      <pointLight position={[0, -0.2, 0]} color={beaconColor} intensity={0.5} distance={4} />
 
       {/* Tiller */}
       <mesh position={[0, 0.95, 0.7]}>

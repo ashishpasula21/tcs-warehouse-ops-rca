@@ -7,7 +7,7 @@ interface Props {
 }
 
 // ── Layout constants ───────────────────────────────────────────────────────────
-const W = 760, H = 480;
+const W = 760, H = 520;
 const BL = 170, BR = 590, BT = 40, BB = 450;
 const WALL = 13;
 
@@ -45,11 +45,10 @@ const SUBOPT_PATH_M  = 31; // T-103 at R-3 → Zone A
 
 // ── Truck component (receiving side, cab-left, trailer-right) ─────────────────
 function RecvTruck({
-  y, truck, queued,
+  y, truck,
 }: {
   y: number;
   truck: { id: string; carrier: string; zone: string; priority: string; pallets: number } | null;
-  queued?: boolean;
 }) {
   const txRight = BL - 4;   // trailer face touches left wall
   const txLeft  = txRight - 110;
@@ -57,21 +56,8 @@ function RecvTruck({
   const ty      = y - 24;
   const th      = 48;
 
-  if (queued) {
-    // Show as faded truck parked in queue area far left
-    return (
-      <g opacity={0.35}>
-        <rect x={txLeft} y={ty} width={110} height={th} rx={3} fill="#e2e8f0" stroke="#9ca3af" strokeWidth={1} />
-        <text x={txLeft + 55} y={ty + 13} textAnchor="middle" fontSize={7} fill="#6b7280">QUEUED</text>
-        <text x={txLeft + 55} y={ty + 24} textAnchor="middle" fontSize={8} fontWeight={700} fill="#374151">
-          {truck?.carrier.split(' ')[0]}
-        </text>
-      </g>
-    );
-  }
-
   if (!truck) {
-    // Empty dock — draw faint dock leveler only (no text, R-label is rendered separately)
+    // Empty dock — draw faint dock leveler only
     return (
       <g>
         <rect x={txRight - 12} y={ty + th * 0.3} width={12} height={th * 0.4} rx={2}
@@ -194,13 +180,13 @@ export function DockLayoutSVG({ phase }: Props) {
         { id: 'T-103', carrier: 'Old Dominion',  zone: 'A', priority: 'HIGH',   pallets: 44 },
       ];
 
-  // Baseline queue (visible far left, faded)
+  // Baseline queue trucks (not docked yet)
   const queuedTrucks = isOpt ? [] : [
     { id: 'T-104', carrier: 'Estes Express', zone: 'B', priority: 'NORMAL', pallets: 28 },
     { id: 'T-105', carrier: 'Saia LTL',      zone: 'C', priority: 'LOW',    pallets: 18 },
   ];
 
-  const shipFill   = isOpt ? [98, 100, 89] : [92, 100, 23];
+  const shipFill    = isOpt ? [98, 100, 89] : [92, 100, 23];
   const stagPallets = isOpt ? [8, 1, 2] : [8, 1, 8];
 
   // Build left wall segments (gap = bay opening)
@@ -221,11 +207,9 @@ export function DockLayoutSVG({ phase }: Props) {
     const toX   = ZONE_X1 - 20;
 
     if (fromY === toY || isOptPath) {
-      // Straight horizontal for matching zone, gentle curve for others
       const midX = (fromX + toX) / 2;
       return `M${fromX},${fromY} Q${midX},${fromY} ${toX},${toY}`;
     }
-    // Suboptimal — noticeable curve showing long path
     const midX = fromX + 30;
     return `M${fromX},${fromY} C${midX},${fromY} ${toX},${fromY} ${toX},${toY}`;
   }
@@ -243,11 +227,9 @@ export function DockLayoutSVG({ phase }: Props) {
   const paths: PathInfo[] = [];
 
   if (isOpt) {
-    // Optimal paths — each dock to matching zone, straight, cyan
     ['A', 'B', 'C'].forEach((z, i) => {
       const fromX = ZONE_X0;
       const fromY = BAY_Y[i];
-      const midY  = (ZONE_Y[z][0] + ZONE_Y[z][1]) / 2;
       paths.push({
         d: `M${fromX},${fromY} H${ZONE_X1 - 22}`,
         stroke: '#0891b2',
@@ -259,8 +241,6 @@ export function DockLayoutSVG({ phase }: Props) {
       });
     });
   } else {
-    // Baseline: T-103 at R-3 (dock index 2) → Zone A (top zone)
-    // Long curved red path
     const fromX = ZONE_X0;
     const fromY = BAY_Y[2]; // R-3
     const toY   = (ZONE_Y['A'][0] + ZONE_Y['A'][1]) / 2;
@@ -316,13 +296,11 @@ export function DockLayoutSVG({ phase }: Props) {
         const congested = cnt >= 6;
         return (
           <g key={i}>
-            {/* Staging zone backing */}
             <rect x={STAG_X0} y={ZONE_Y[String.fromCharCode(65 + i)][0]}
               width={STAG_X1 - STAG_X0}
               height={ZONE_Y[String.fromCharCode(65 + i)][1] - ZONE_Y[String.fromCharCode(65 + i)][0]}
               fill={congested ? '#fef2f2' : '#f9fafb'} stroke={congested ? '#fecaca' : '#e5e7eb'}
               strokeWidth={1} rx={3} />
-            {/* Pallet icons */}
             {Array.from({ length: Math.min(cnt, 6) }, (_, j) => (
               <PalletStack
                 key={j}
@@ -332,7 +310,6 @@ export function DockLayoutSVG({ phase }: Props) {
                 max={6}
               />
             ))}
-            {/* S-label */}
             <text x={STAG_X0 + 6} y={ZONE_Y[String.fromCharCode(65 + i)][0] + 13}
               fontSize={9} fontWeight={700} fill={congested ? '#dc2626' : '#6b7280'}>
               S-{i + 1} {congested ? '⚠' : ''}
@@ -346,7 +323,6 @@ export function DockLayoutSVG({ phase }: Props) {
       {/* ── Path lines ── */}
       {paths.map((p, i) => (
         <g key={i}>
-          {/* Glow effect for optimal paths */}
           {p.dash === 'none' && (
             <path d={p.d} stroke={p.stroke} strokeWidth={p.strokeW + 4}
               fill="none" opacity={0.15} strokeLinecap="round" />
@@ -354,7 +330,6 @@ export function DockLayoutSVG({ phase }: Props) {
           <path d={p.d} stroke={p.stroke} strokeWidth={p.strokeW}
             fill="none" strokeDasharray={p.dash === 'none' ? undefined : p.dash}
             strokeLinecap="round" markerEnd={p.dash === 'none' ? `url(#arrow-${p.stroke.replace('#', '')})` : undefined} />
-          {/* Distance label */}
           <rect x={p.labelX - 18} y={p.labelY - 9} width={38} height={14} rx={3}
             fill={p.dash === 'none' ? '#ecfeff' : '#fef2f2'}
             stroke={p.dash === 'none' ? '#a5f3fc' : '#fecaca'} strokeWidth={0.8} />
@@ -382,15 +357,12 @@ export function DockLayoutSVG({ phase }: Props) {
       {/* ── Dock doors (dark rectangles in bay openings) ── */}
       {BAY_Y.map((by, i) => (
         <g key={i}>
-          {/* Receiving door */}
           <rect x={BL - 1} y={by - BAY_H / 2} width={WALL + 2} height={BAY_H}
             fill="#1e293b" stroke="#475569" strokeWidth={1} />
           <rect x={BL + 1} y={by - BAY_H / 2 + 3} width={WALL - 2} height={BAY_H - 6}
             fill="#0f172a" />
-          {/* Dock label — placed inside the door opening so it never collides with truck text */}
           <text x={BL + WALL / 2 + 1} y={by - BAY_H / 2 - 5} textAnchor="middle" fontSize={8}
             fontWeight={700} fill="#94a3b8">R-{i + 1}</text>
-          {/* Shipping door */}
           <rect x={BR - WALL - 1} y={by - BAY_H / 2} width={WALL + 2} height={BAY_H}
             fill="#1e293b" stroke="#475569" strokeWidth={1} />
           <rect x={BR - WALL + 1} y={by - BAY_H / 2 + 3} width={WALL - 2} height={BAY_H - 6}
@@ -405,32 +377,68 @@ export function DockLayoutSVG({ phase }: Props) {
         <RecvTruck key={i} y={by} truck={recvTrucks[i]} />
       ))}
 
-      {/* ── Queued trucks (baseline only, shown faded below last dock) ── */}
-      {queuedTrucks.map((t, i) => (
-        <RecvTruck key={t.id} y={BB + 20 + i * 60} truck={t as any} queued />
-      ))}
-
       {/* ── Shipping trucks ── */}
       {BAY_Y.map((by, i) => (
         <ShipTruck key={i} y={by} fill={shipFill[i]} label={`S-${i + 1}`} />
       ))}
 
+      {/* ── Queued trucks (baseline only) — compact panel inside SVG bounds ── */}
+      {queuedTrucks.length > 0 && (
+        <g>
+          {/* Panel backdrop */}
+          <rect x={6} y={BB - 76} width={152} height={72} rx={5}
+            fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1} />
+          {/* Header */}
+          <rect x={6} y={BB - 76} width={152} height={18} rx={5} fill="#e2e8f0" />
+          <rect x={6} y={BB - 64} width={152} height={6} fill="#e2e8f0" />
+          <text x={82} y={BB - 63} textAnchor="middle" fontSize={8} fontWeight={700}
+            fill="#475569" letterSpacing={0.5}>
+            INBOUND QUEUE — {queuedTrucks.length} WAITING
+          </text>
+          {/* Truck rows */}
+          {queuedTrucks.map((t, i) => {
+            const zoneCol = ZONE_COLOR[t.zone];
+            const ry = BB - 52 + i * 24;
+            return (
+              <g key={t.id} opacity={0.75}>
+                <rect x={10} y={ry} width={144} height={20} rx={3}
+                  fill="#fff" stroke="#e2e8f0" strokeWidth={0.8} />
+                {/* Zone colour left bar */}
+                <rect x={10} y={ry} width={4} height={20} rx={2} fill={zoneCol} opacity={0.8} />
+                <text x={20} y={ry + 8} fontSize={7.5} fontWeight={700} fill="#374151">
+                  {t.carrier.split(' ')[0]}
+                </text>
+                <text x={20} y={ry + 16} fontSize={6.5} fill="#6b7280">
+                  {t.pallets} pallets · Zone {t.zone}
+                </text>
+                <rect x={116} y={ry + 4} width={32} height={12} rx={3}
+                  fill="#fef3c7" stroke="#fde68a" strokeWidth={0.7} />
+                <text x={132} y={ry + 13} textAnchor="middle" fontSize={6.5}
+                  fontWeight={700} fill="#92400e">
+                  QUEUED
+                </text>
+              </g>
+            );
+          })}
+        </g>
+      )}
+
       {/* ── Column labels ── */}
-      <text x={(BL + ZONE_X1) / 2} y={BB + 14} textAnchor="middle"
+      <text x={(BL + ZONE_X1) / 2} y={BB + 16} textAnchor="middle"
         fontSize={9} fontWeight={700} fill="#64748b" letterSpacing={1}>
         RECEIVING ZONE
       </text>
-      <text x={(STAG_X0 + STAG_X1) / 2} y={BB + 14} textAnchor="middle"
+      <text x={(STAG_X0 + STAG_X1) / 2} y={BB + 16} textAnchor="middle"
         fontSize={9} fontWeight={700} fill="#64748b" letterSpacing={1}>
         STAGING
       </text>
-      <text x={15} y={BB + 14} fontSize={8} fill="#9ca3af">← Inbound trucks</text>
-      <text x={W - 10} y={BB + 14} textAnchor="end" fontSize={8} fill="#9ca3af">Outbound trucks →</text>
+      <text x={15} y={BB + 16} fontSize={8} fill="#9ca3af">← Inbound trucks</text>
+      <text x={W - 10} y={BB + 16} textAnchor="end" fontSize={8} fill="#9ca3af">Outbound trucks →</text>
 
       {/* ── Phase badge ── */}
       {isOpt ? (
         <g>
-          <rect x={W / 2 - 80} y={BT - 30} width={160} height={22} rx={11}
+          <rect x={W / 2 - 100} y={BT - 30} width={200} height={22} rx={11}
             fill="#0891b2" />
           <text x={W / 2} y={BT - 15} textAnchor="middle" fontSize={9}
             fontWeight={700} fill="#fff" letterSpacing={0.5}>
@@ -439,7 +447,7 @@ export function DockLayoutSVG({ phase }: Props) {
         </g>
       ) : (
         <g>
-          <rect x={W / 2 - 80} y={BT - 30} width={160} height={22} rx={11}
+          <rect x={W / 2 - 100} y={BT - 30} width={200} height={22} rx={11}
             fill="#dc2626" />
           <text x={W / 2} y={BT - 15} textAnchor="middle" fontSize={9}
             fontWeight={700} fill="#fff" letterSpacing={0.5}>
@@ -449,7 +457,7 @@ export function DockLayoutSVG({ phase }: Props) {
       )}
 
       {/* ── Legend ── */}
-      <g transform={`translate(${BL}, ${BB + 26})`}>
+      <g transform={`translate(${BL}, ${BB + 30})`}>
         <rect x={0} y={0} width={10} height={3} rx={1} fill="#0891b2" />
         <text x={14} y={4} fontSize={8} fill="#374151">Optimal path</text>
         <rect x={80} y={0} width={10} height={3} rx={1} fill="#dc2626"

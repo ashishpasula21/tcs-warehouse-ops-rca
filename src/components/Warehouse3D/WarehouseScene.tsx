@@ -7,17 +7,14 @@ import {
   DYNAMIC_SHELF_SLOTS, slotToWorldPos,
 } from './WarehouseFloor';
 import { Forklift } from './Forklift';
-import { PalletJack } from './PalletJack';
-import { OperatorModel } from './OperatorModel';
 import { HeatmapOverlay } from './HeatmapOverlay';
 import { EventIndicator } from './EventIndicator';
+import { RandomWalker } from './RandomWalker';
+import { RandomPalletJack } from './RandomPalletJack';
 import { useSimulationStore } from '../../store/simulationStore';
 import { getScenarioConfig } from '../../simulation/routes';
 import { getActiveEvent } from '../../data/shiftEvents';
 import {
-  WALKER_1_ROUTE, WALKER_2_ROUTE, WALKER_3_ROUTE,
-  DOCK_WORKER_1_ROUTE, DOCK_WORKER_2_ROUTE,
-  SHELF_PICKER_1_ROUTE, SHELF_PICKER_2_ROUTE,
   FL1_ROUTE, FL2_ROUTE, FL3_ROUTE, FL4_ROUTE,
   getEquipmentState, getRouteCycleNum,
 } from '../../simulation/routes';
@@ -204,17 +201,14 @@ function TruckSystem() {
 function SceneLighting() {
   return (
     <>
-      <ambientLight intensity={3.8} color="#e8ecf4" />
+      <ambientLight intensity={4.2} color="#e8ecf4" />
       <directionalLight position={[30, 60, 40]} intensity={2.4} color="#ffffff" />
-      <directionalLight position={[-40, 30, -30]} intensity={1.4} color="#dde8f8" />
-      <directionalLight position={[0, 20, 0]} intensity={1.0} color="#f0f4ff" />
-      {/* 6 point lights instead of 14 — same visual quality, much cheaper */}
-      <pointLight position={[-40, 11, -20]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
-      <pointLight position={[  0, 11, -20]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
-      <pointLight position={[ 40, 11, -20]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
-      <pointLight position={[-40, 11,   5]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
-      <pointLight position={[  0, 11,   5]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
-      <pointLight position={[ 40, 11,   5]} intensity={4.0} color="#fff4e0" distance={55} decay={1.2} />
+      <directionalLight position={[-40, 30, -30]} intensity={1.6} color="#dde8f8" />
+      {/* 4 point lights cover the full floor — was 6, each with tighter overlap */}
+      <pointLight position={[-38, 11, -8]} intensity={5.5} color="#fff4e0" distance={70} decay={1.2} />
+      <pointLight position={[ 38, 11, -8]} intensity={5.5} color="#fff4e0" distance={70} decay={1.2} />
+      <pointLight position={[-38, 11,  18]} intensity={5.0} color="#fff4e0" distance={65} decay={1.2} />
+      <pointLight position={[ 38, 11,  18]} intensity={5.0} color="#fff4e0" distance={65} decay={1.2} />
     </>
   );
 }
@@ -268,8 +262,9 @@ export function WarehouseScene() {
 
   return (
     <Canvas
-      dpr={[1, 1.5]}
-      gl={{ antialias: true, alpha: false, logarithmicDepthBuffer: true, powerPreference: 'high-performance' }}
+      dpr={[0.75, 1.5]}
+      gl={{ antialias: false, alpha: false, logarithmicDepthBuffer: true, powerPreference: 'high-performance' }}
+      performance={{ min: 0.5 }}
       style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={['#b8ccd8']} />
       <fog attach="fog" args={['#c4d8e4', 120, 240]} />
@@ -299,40 +294,34 @@ export function WarehouseScene() {
           const id = f.route.id;
           const parkWhenAbsent =
             ['fl-1', 'fl-1-stag', 'fl-1-opt'].includes(id)
-              ? { dockIdx: 0, parkX: -54, parkZ: -22 }   // RECV_DOORS[0] = x=-54
+              ? { dockIdx: 0, parkX: -54, parkZ: -33 }   // RECV_DOORS[0] = x=-54, parked at dock leveler
             : ['fl-2', 'fl-2-improved', 'fl-2-stag', 'fl-2-opt'].includes(id)
-              ? { dockIdx: 2, parkX:   0, parkZ: -22 }   // RECV_DOORS[2] = x=+8 (FL-2 stages at x=0)
+              ? { dockIdx: 2, parkX:   0, parkZ: -33 }   // RECV_DOORS[2] = x=+8 (FL-2 stages at x=0), at dock
             : ['fl-3', 'fl-3-stag', 'fl-3-opt', 'fl-3-best'].includes(id)
-              ? { dockIdx: 3, parkX: -30, parkZ:  22 }   // SHIP_DOORS[0] = x=-30
+              ? { dockIdx: 3, parkX: -30, parkZ:  29 }   // SHIP_DOORS[0] = x=-30, parked at dock door
             : id === 'fl-4-base'
-              ? { dockIdx: 5, parkX:  49, parkZ:  22 }   // SHIP_DOORS[2] = x=+49
+              ? { dockIdx: 5, parkX:  49, parkZ:  29 }   // SHIP_DOORS[2] = x=+49, parked at dock door
             : id === 'fl-4'                               // FL4_PUTAWAY_ROUTE
-              ? { dockIdx: 0, parkX: -38, parkZ: -22 }   // shares RECV west truck
+              ? { dockIdx: 0, parkX: -38, parkZ: -33 }   // shares RECV west truck, at dock
             : undefined;
           return (
-            <Forklift key={`fl-${i}`} route={f.route} beaconColor={f.beaconColor} parkWhenAbsent={parkWhenAbsent} />
+            <Forklift key={`fl-${i}`} route={f.route} beaconColor={f.beaconColor} parkWhenAbsent={parkWhenAbsent} startAfterMs={60000} />
           );
         })}
 
-        {/* Pallet jacks — scenario-aware */}
-        {config.palletJacks.map((p, i) => (
-          <PalletJack key={`pj-${i}`} route={p.route} beaconColor={p.beaconColor} />
-        ))}
+        {/* Pallet jacks — random walkers, start after workers/forklifts are settled */}
+        <RandomPalletJack id="pj-r1" beaconColor="#cc2200" seed={111} startAfterMs={60000} />
+        <RandomPalletJack id="pj-r2" beaconColor="#aa1a00" seed={222} startAfterMs={75000} />
 
-        {/* Pick lane walkers */}
-        <OperatorModel route={WALKER_1_ROUTE} vestColor="#f5d700" hatColor="#f5d700" />
-        <OperatorModel route={WALKER_2_ROUTE} vestColor="#f5d700" hatColor="#f5d700" />
-
-        {/* Cross-aisle / staging walker */}
-        <OperatorModel route={WALKER_3_ROUTE} vestColor="#ff6600" hatColor="#f5d700" />
-
-        {/* Dock workers */}
-        <OperatorModel route={DOCK_WORKER_1_ROUTE} vestColor="#f5d700" hatColor="#ffffff" />
-        <OperatorModel route={DOCK_WORKER_2_ROUTE} vestColor="#f5d700" hatColor="#ffffff" />
-
-        {/* Shelf pickers — slightly different vest for variety */}
-        <OperatorModel route={SHELF_PICKER_1_ROUTE} vestColor="#22c55e" hatColor="#f5d700" />
-        <OperatorModel route={SHELF_PICKER_2_ROUTE} vestColor="#22c55e" hatColor="#f5d700" />
+        {/* Warehouse workers — random walkers entering from east wall personnel door */}
+        <RandomWalker vestColor="#f5d700" hatColor="#f5d700" initialDelayMs={0}     seed={11} />
+        <RandomWalker vestColor="#f5d700" hatColor="#f5d700" initialDelayMs={5000}  seed={22} />
+        <RandomWalker vestColor="#ff6600" hatColor="#f5d700" initialDelayMs={10000} seed={33} />
+        <RandomWalker vestColor="#f5d700" hatColor="#ffffff" initialDelayMs={2500}  seed={44} />
+        <RandomWalker vestColor="#f5d700" hatColor="#ffffff" initialDelayMs={7500}  seed={55} />
+        <RandomWalker vestColor="#22c55e" hatColor="#f5d700" initialDelayMs={15000} seed={66} />
+        <RandomWalker vestColor="#22c55e" hatColor="#f5d700" initialDelayMs={20000} seed={77} />
+        <RandomWalker vestColor="#0ea5e9" hatColor="#f5d700" initialDelayMs={3500}  seed={88} />
 
         {/* ── Animated shelf boxes — actual rack shelf positions ──────────────────
             Each DynamicShelfBox sits at the same coordinates as the static box

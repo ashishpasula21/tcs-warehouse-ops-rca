@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { getEquipmentState } from '../../simulation/routes';
 import type { EquipmentRoute } from '../../simulation/routes';
 import { useSimulationStore } from '../../store/simulationStore';
-import { updateAgentPos } from '../../simulation/agentPositions';
+import { updateForkliftPos } from '../../simulation/agentPositions';
 
 // Mirrors the truck cycle constants from WarehouseScene so Forklift can self-check
 // whether its assigned truck is present without a cross-component callback.
@@ -13,10 +13,12 @@ const _DOCKED = 1_200_000;
 const _DEPART =   120_000;
 const _GAP    =   300_000;
 
-function isTruckVisible(dockIdx: number, currentTime: number): boolean {
+// Only true during the fully-docked phase — forklift must not operate while
+// a truck is still arriving or departing.
+function isTruckDocked(dockIdx: number, currentTime: number): boolean {
   const offset = dockIdx * 285_000;
   const t = ((currentTime + offset) % _CYCLE + _CYCLE) % _CYCLE;
-  return !(t >= _DOCKED + _DEPART && t < _DOCKED + _DEPART + _GAP);
+  return t < _DOCKED;
 }
 
 interface ForkliftProps {
@@ -24,36 +26,58 @@ interface ForkliftProps {
   beaconColor: string;
   /** When set, forklift parks at (parkX, parkZ) whenever the assigned truck is absent. */
   parkWhenAbsent?: { dockIdx: number; parkX: number; parkZ: number };
+  /** Forklift stays at its depot waypoint until currentTime exceeds this (sim-ms). */
+  startAfterMs?: number;
 }
 
-export function Forklift({ route, beaconColor, parkWhenAbsent }: ForkliftProps) {
+export function Forklift({ route, beaconColor, parkWhenAbsent, startAfterMs = 0 }: ForkliftProps) {
   const groupRef    = useRef<THREE.Group>(null);
   const carriageRef = useRef<THREE.Mesh>(null);
   const fork1Ref    = useRef<THREE.Mesh>(null);
   const fork2Ref    = useRef<THREE.Mesh>(null);
   const palletRef   = useRef<THREE.Group>(null);
-  const currentAngle = useRef(0);
-  const forkY        = useRef(0.3);
+  const currentAngle  = useRef(0);
+  const forkY         = useRef(0.3);
+  // Tracks when the forklift last became active so route always restarts from depot.
+  const activeStartMs = useRef<number>(-1);
+  const wasHeld       = useRef(true);
 
   useFrame((_, delta) => {
     const { currentTime } = useSimulationStore.getState();
     if (!groupRef.current) return;
 
-    const parked = parkWhenAbsent && !isTruckVisible(parkWhenAbsent.dockIdx, currentTime);
-    const state = getEquipmentState(route, currentTime);
+    const holdAtDepot  = currentTime < startAfterMs;
+    const truckAbsent  = parkWhenAbsent ? !isTruckDocked(parkWhenAbsent.dockIdx, currentTime) : false;
+    const isHeld       = holdAtDepot || truckAbsent;
 
-    const x = parked ? parkWhenAbsent!.parkX : state.x;
-    const z = parked ? parkWhenAbsent!.parkZ : state.z;
-    const isLoaded  = parked ? false : state.isLoaded;
+    // On every held → active transition, record the time so route plays from t=0.
+    if (wasHeld.current && !isHeld) activeStartMs.current = currentTime;
+    wasHeld.current = isHeld;
+
+    const depotWp = route.waypoints[0];
+
+    let x: number, z: number, isLoaded: boolean;
+    if (isHeld) {
+      // Freeze at rest position — no movement, no rotation update.
+      x        = truckAbsent ? parkWhenAbsent!.parkX : depotWp.x;
+      z        = truckAbsent ? parkWhenAbsent!.parkZ : depotWp.z;
+      isLoaded = false;
+    } else {
+      const effectiveMs = activeStartMs.current < 0 ? 0 : currentTime - activeStartMs.current;
+      const state = getEquipmentState(route, effectiveMs);
+      x        = state.x;
+      z        = state.z;
+      isLoaded = state.isLoaded;
+      // Only interpolate rotation while actively operating.
+      const diff    = state.angle - currentAngle.current;
+      const wrapped = ((diff + Math.PI) % (2 * Math.PI)) - Math.PI;
+      currentAngle.current += wrapped * Math.min(1, delta * 5);
+      groupRef.current.rotation.y = currentAngle.current;
+    }
 
     // y=0.93 keeps wheels on floor at scale 1.5 (wheel local y=-0.62; 0.62×1.5=0.93)
     groupRef.current.position.set(x, 0.93, z);
-    updateAgentPos(route.id, x, z);
-
-    const diff    = state.angle - currentAngle.current;
-    const wrapped = ((diff + Math.PI) % (2 * Math.PI)) - Math.PI;
-    currentAngle.current += wrapped * Math.min(1, delta * 5);
-    groupRef.current.rotation.y = currentAngle.current;
+    updateForkliftPos(route.id, x, z);
 
     const targetForkY = isLoaded ? 1.6 : 0.3;
     forkY.current += (targetForkY - forkY.current) * delta * 2;
@@ -69,8 +93,6 @@ export function Forklift({ route, beaconColor, parkWhenAbsent }: ForkliftProps) 
 
   return (
     <group ref={groupRef} scale={[1.5, 1.5, 1.5]}>
-      <pointLight position={[0, -0.5, 0]} color={beaconColor} intensity={0.8} distance={4} />
-
       {/* Body */}
       <mesh>
         <boxGeometry args={[2.2, 1.3, 3.0]} />
@@ -135,7 +157,7 @@ export function Forklift({ route, beaconColor, parkWhenAbsent }: ForkliftProps) 
           <boxGeometry args={[1.8, 0.18, 1.5]} />
           <meshStandardMaterial color="#8a6a3a" roughness={0.95} />
         </mesh>
-        <mesh position={[0, 0.78, -1.9]}>
+        <mesh position={[0, 0.78, -1.78]}>
           <boxGeometry args={[1.6, 0.8, 1.3]} />
           <meshStandardMaterial color="#c8924a" roughness={0.88} />
         </mesh>
@@ -149,10 +171,6 @@ export function Forklift({ route, beaconColor, parkWhenAbsent }: ForkliftProps) 
         </mesh>
       ))}
 
-      {/* Headlights */}
-      {([-0.7, 0.7] as const).map((ox, i) => (
-        <pointLight key={`hl-${i}`} position={[ox, 0.3, -1.8]} color="#ffe880" intensity={1.2} distance={12} />
-      ))}
 
       {/* Beacon */}
       <mesh position={[0, 2.95, 0]}>

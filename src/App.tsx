@@ -49,7 +49,7 @@ type AppView    = 'home' | 'network' | 'warehouse';
 type MainTab    = 'warehouse-ops' | 'adaptive-twin' | 'autonomous-dock';
 type SubView    = 'overview' | 'simulation' | 'analytics' | 'ai' | 'kpi-impact';
 type ATSubView  = 'live' | 'anomalies' | 'ai-scenarios' | 'control';
-type ADSubView  = 'live-ops' | 'ai-decisions' | 'simulation' | 'kpi-impact';
+type ADSubView  = 'live-ops' | 'ai-decisions' | 'simulation' | 'kpi-impact' | 'load-kpi';
 
 // ── Main tabs config ──────────────────────────────────────────────────────────
 const MAIN_TABS: { id: MainTab; label: string; Icon: typeof Activity; color: string }[] = [
@@ -68,13 +68,14 @@ const SUB_VIEWS: { id: SubView; label: string; Icon: typeof Activity }[] = [
 // ── Top Navigation Bar ────────────────────────────────────────────────────────
 function TopNav({
   mainTab, setMainTab, subView, setSubView, atSubView, setAtSubView,
-  adSubView, setAdSubView, dockPhase, onBackToNetwork,
+  adSubView, setAdSubView, dockPhase, loadMode, onBackToNetwork,
 }: {
   mainTab: MainTab; setMainTab: (t: MainTab) => void;
   subView: SubView; setSubView: (v: SubView) => void;
   atSubView: ATSubView; setAtSubView: (v: ATSubView) => void;
   adSubView: ADSubView; setAdSubView: (v: ADSubView) => void;
   dockPhase: 'baseline' | 'optimised';
+  loadMode: 'baseline' | 'optimised';
   onBackToNetwork: () => void;
 }) {
   const { isPlaying, improvementScenario, atScenario } = useSimulationStore();
@@ -221,6 +222,20 @@ function TopNav({
                 KPI Impact
               </button>
             )}
+            {loadMode === 'optimised' && (
+              <button onClick={() => setAdSubView('load-kpi')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '5px 14px', borderRadius: '6px 6px 0 0', fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', border: 'none', transition: 'all 0.12s',
+                  background: adSubView === 'load-kpi' ? PAGE : 'transparent',
+                  color: adSubView === 'load-kpi' ? '#15803d' : '#16a34a',
+                  borderBottom: adSubView === 'load-kpi' ? `2px solid #16a34a` : '2px solid transparent',
+                }}>
+                <TrendingUp size={12} />
+                Load KPI Impact
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -269,7 +284,7 @@ function TopNav({
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '6px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700,
               cursor: 'pointer', border: 'none', transition: 'all 0.15s',
-              background: subView === 'simulation' ? T1 : '#1d4ed8',
+              background: '#1d4ed8',
               color: '#fff',
               boxShadow: '0 1px 4px rgba(29,78,216,0.4)',
             }}>
@@ -2259,15 +2274,18 @@ function ADSimulationView({
   setAdSubView,
   dockPhase,
   setDockPhase,
+  loadMode,
+  setLoadMode,
 }: {
   setAdSubView: (v: ADSubView) => void;
   dockPhase: 'baseline' | 'optimised';
   setDockPhase: (p: 'baseline' | 'optimised') => void;
+  loadMode: 'baseline' | 'optimised';
+  setLoadMode: (m: 'baseline' | 'optimised') => void;
 }) {
   const CYAN = AD_COLOR;
   const [activeTab,    setActiveTab]    = useState<'dock' | 'load'>('dock');
   const [dockRunning,  setDockRunning]  = useState(false);
-  const [loadMode,     setLoadMode]     = useState<'baseline' | 'optimised'>('baseline');
   const [loadAnimating,setLoadAnimating]= useState(false);
   const [dismissedEv,  setDismissedEv] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
@@ -2341,7 +2359,7 @@ function ADSimulationView({
             )}
           </div>
         )}
-        {activeTab === 'load' && (
+        {(activeTab === 'load') && (
           <div style={{ display: 'flex', gap: 8 }}>
             {loadMode === 'baseline' ? (
               <button onClick={handleOptimisePacking} disabled={loadAnimating}
@@ -2360,8 +2378,8 @@ function ADSimulationView({
         {/* Tab switcher */}
         <div style={{ display: 'flex', gap: 2, background: PAGE, borderRadius: 9, padding: 3 }}>
           {([
-            { id: 'dock' as const, label: 'Dock Optimizer', Icon: Truck   },
-            { id: 'load' as const, label: 'Load Planner',   Icon: Package },
+            { id: 'dock' as const, label: 'Dock Optimizer', Icon: Truck    },
+            { id: 'load' as const, label: 'Load Planner',   Icon: Package  },
           ]).map(({ id, label, Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
               style={{
@@ -2616,6 +2634,166 @@ function ADSimulationView({
           </div>
         </div>
       )}
+
+    </div>
+  );
+}
+
+// ── Load Planner — KPI Impact View ───────────────────────────────────────────
+function LoadPlannerKPIView({
+  loadMode,
+  setAdSubView,
+}: {
+  loadMode: 'baseline' | 'optimised';
+  setAdSubView: (v: ADSubView) => void;
+}) {
+  const CYAN = AD_COLOR;
+  const show = loadMode === 'optimised';
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', background: PAGE, padding: '28px 32px 40px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fffbeb', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Package size={16} color="#d97706" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: T1, margin: 0, letterSpacing: '-0.02em' }}>Load Planner — KPI Impact</h1>
+            <p style={{ fontSize: 13, color: T2, margin: '2px 0 0' }}>Before vs. after AI packing optimisation across trailer fill, load time, damage risk, and cost</p>
+          </div>
+        </div>
+        {show
+          ? <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 99, padding: '4px 12px', marginTop: 8 }}>
+              <CheckCircle size={11} color="#16a34a" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d' }}>AI packing applied — optimised data shown</span>
+            </div>
+          : <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f9fafb', border: `1px solid ${BORDER}`, borderRadius: 99, padding: '4px 12px', marginTop: 8 }}>
+              <span style={{ fontSize: 11, color: T3 }}>Showing baseline — apply AI packing from Load Planner to see live improvement</span>
+            </div>
+        }
+      </div>
+
+      {/* Primary KPI cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
+        {[
+          { Icon: TrendingUp,    title: 'Trailer Fill Rate',  before: '72%',    after: '94%',    delta: '+22pp',  unit: 'of trailer capacity used',  color: CYAN,      bg: '#ecfeff', bd: '#a5f3fc' },
+          { Icon: Timer,         title: 'Load Time',          before: '28 min', after: '19 min', delta: '−9 min', unit: 'avg time to load trailer',   color: '#8b5cf6', bg: '#f5f3ff', bd: '#ddd6fe' },
+          { Icon: AlertTriangle, title: 'Damage Risk',        before: 'HIGH',   after: 'LOW',    delta: '↓ 85%',  unit: 'item damage probability',    color: '#16a34a', bg: '#f0fdf4', bd: '#bbf7d0' },
+          { Icon: Zap,           title: 'Weight Compliance',  before: '0%',     after: '100%',   delta: '+100pp', unit: 'axle weight within limits',  color: '#d97706', bg: '#fffbeb', bd: '#fde68a' },
+        ].map(({ Icon, title, before, after, delta, unit, color, bg, bd }) => (
+          <div key={title} style={{ background: CARD, border: `1px solid ${show ? bd : BORDER}`, borderRadius: 14, padding: '20px 22px', boxShadow: CARDSH, transition: 'border-color 0.3s' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: bg, border: `1px solid ${bd}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon size={14} color={color} />
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.3 }}>{title}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 13, color: show ? '#94a3b8' : T2, textDecoration: show ? 'line-through' : 'none', transition: 'all 0.3s' }}>{before}</span>
+              {show && <>
+                <span style={{ fontSize: 11, color: T3 }}>→</span>
+                <span style={{ fontSize: 26, fontWeight: 800, color, letterSpacing: '-0.02em' }}>{after}</span>
+              </>}
+            </div>
+            {show && <span style={{ fontSize: 11, fontWeight: 700, color: '#22c55e', background: '#14532d', borderRadius: 5, padding: '2px 8px' }}>{delta}</span>}
+            <div style={{ fontSize: 11, color: T3, marginTop: 8 }}>{unit}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Before / After breakdown */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 28 }}>
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 14, padding: '22px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <AlertTriangle size={14} color={RED} />
+            <span style={{ fontSize: 12, fontWeight: 800, color: RED, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Baseline Load — What Goes Wrong</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { title: 'Random packing order',     body: 'Small boxes placed first get buried under heavy items. No weight-stacking rules — fragile SKUs are crushed before the truck leaves the yard.' },
+              { title: '28% trailer space wasted', body: 'Gaps appear between mismatched box sizes. No column fill logic means irregular stacks leave air pockets that reduce effective capacity.' },
+              { title: 'Axle weight violation risk', body: 'Heavy pallets loaded without regard to axle position. Front-heavy or rear-heavy loads can cause DOT weight distribution violations.' },
+              { title: 'Long load time: 28 min',   body: 'Workers improvise placement with no pre-planned sequence. Repositioning mistakes add 8–12 min per trailer.' },
+            ].map(({ title, body }) => (
+              <div key={title} style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 9, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#9f1239', marginBottom: 4 }}>{title}</div>
+                <div style={{ fontSize: 11, color: '#7f1d1d', lineHeight: 1.55 }}>{body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 14, padding: '22px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <CheckCircle size={14} color={CYAN} />
+            <span style={{ fontSize: 12, fontWeight: 800, color: CYAN, textTransform: 'uppercase', letterSpacing: '0.06em' }}>AI Optimised Load — How It Fixes It</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { title: 'Layer-by-layer sequence',      body: 'Large heavy boxes form a dense floor layer first. Medium on top. Small boxes fill remaining space. Sequence is pre-planned and handed to warehouse workers.' },
+              { title: '94% trailer utilisation',      body: 'Column packing matches box footprints to fill every available column. No gaps remain — reducing dead air by ~22 pp.' },
+              { title: '100% axle weight compliance',  body: 'Weight is distributed front-to-back per DOT axle load guidelines. Heavy SKUs placed in the optimal axle zone — 53/47 split maintained.' },
+              { title: 'Load time: 19 min',            body: 'Workers follow a digital manifest: exact position for every box. No repositioning needed. Saves ~9 min × 6 trips = ~54 min / shift.' },
+            ].map(({ title, body }) => (
+              <div key={title} style={{ background: '#f0fdfe', border: '1px solid #a5f3fc', borderRadius: 9, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#0e7490', marginBottom: 4 }}>{title}</div>
+                <div style={{ fontSize: 11, color: '#0c4a6e', lineHeight: 1.55 }}>{body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Shift-level impact table */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '22px 24px', boxShadow: CARDSH, marginBottom: 24 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: T1, marginBottom: 16 }}>Shift-Level Impact — 6 Outbound Trailers / Shift</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: PAGE }}>
+                {['Metric', 'Baseline', 'AI Optimised', 'Improvement'].map((h, i) => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: i === 0 ? 'left' : 'center', fontSize: 10, fontWeight: 700, color: i === 1 ? RED : i === 2 ? CYAN : i === 3 ? GREEN : T3, textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: `1px solid ${BORDER}` }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { metric: 'Avg trailer fill rate',        base: '72%',           opt: '94%',          gain: '+22pp per trailer'       },
+                { metric: 'Total load time (6 trailers)', base: '168 min',        opt: '114 min',      gain: '−54 min / shift'         },
+                { metric: 'Wasted trailer space',         base: '28% of volume',  opt: '6% of volume', gain: '−22% dead air / trailer' },
+                { metric: 'Damage incidents / week',      base: '~3–5 claims',    opt: '< 0.5 claims', gain: '−85% damage rate'        },
+                { metric: 'Axle weight violations',       base: '~2 / week',      opt: '0',            gain: 'Full compliance'         },
+                { metric: 'Labour cost saved / shift',    base: '—',              opt: '+$340',        gain: '0.9 FTE-hour saved'      },
+              ].map((row, i) => (
+                <tr key={i} style={{ borderTop: `1px solid ${BORDER}`, background: i % 2 === 0 ? 'transparent' : PAGE }}>
+                  <td style={{ padding: '10px 14px', fontWeight: 600, color: T1 }}>{row.metric}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center', color: RED, fontWeight: 600 }}>{row.base}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center', color: CYAN, fontWeight: 700 }}>{row.opt}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#22c55e', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 5, padding: '2px 8px' }}>{row.gain}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* CTA — go to Load Planner 3D view */}
+      <div style={{ background: '#0f172a', borderRadius: 12, padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>
+            {show ? 'See the optimised load in 3D' : 'Ready to see the improvement in 3D?'}
+          </div>
+          <div style={{ fontSize: 12, color: '#64748b' }}>
+            {show ? 'Open the Load Planner to view the AI-packed truck in real time.' : 'Switch to Load Planner and click "Apply AI Packing" to watch boxes re-sequence live.'}
+          </div>
+        </div>
+        <button onClick={() => setAdSubView('simulation')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <Play size={11} /> Open Load Planner
+        </button>
+      </div>
     </div>
   );
 }
@@ -2860,16 +3038,18 @@ function ADKPIImpactView({ dockPhase }: { dockPhase: 'baseline' | 'optimised' })
 }
 
 // ── Autonomous Dock — root router ─────────────────────────────────────────────
-function AutonomousDockView({ adSubView, setAdSubView, dockPhase, setDockPhase }: {
+function AutonomousDockView({ adSubView, setAdSubView, dockPhase, setDockPhase, loadMode, setLoadMode }: {
   adSubView: ADSubView; setAdSubView: (v: ADSubView) => void;
   dockPhase: 'baseline' | 'optimised'; setDockPhase: (p: 'baseline' | 'optimised') => void;
+  loadMode: 'baseline' | 'optimised'; setLoadMode: (m: 'baseline' | 'optimised') => void;
 }) {
   return (
     <>
       {adSubView === 'live-ops'     && <ADLiveOpsView     setAdSubView={setAdSubView} />}
       {adSubView === 'ai-decisions' && <ADAIDecisionsView setAdSubView={setAdSubView} />}
-      {adSubView === 'simulation'   && <ADSimulationView  setAdSubView={setAdSubView} dockPhase={dockPhase} setDockPhase={setDockPhase} />}
-      {adSubView === 'kpi-impact'   && <ADKPIImpactView dockPhase={dockPhase} />}
+      {adSubView === 'simulation'   && <ADSimulationView  setAdSubView={setAdSubView} dockPhase={dockPhase} setDockPhase={setDockPhase} loadMode={loadMode} setLoadMode={setLoadMode} />}
+      {adSubView === 'kpi-impact'   && <ADKPIImpactView   dockPhase={dockPhase} />}
+      {adSubView === 'load-kpi'     && <LoadPlannerKPIView loadMode={loadMode} setAdSubView={setAdSubView} />}
     </>
   );
 }
@@ -2895,8 +3075,8 @@ interface WarehouseNode {
 const WAREHOUSES: WarehouseNode[] = [
   {
     id: 'wh-1',
-    name: 'Warehouse 1',
-    location: '',
+    name: 'Warehouse 1 — Cincinnati',
+    location: 'Cincinnati, OH',
     status: 'live',
     sqft: 320000,
     docks: 24,
@@ -2908,50 +3088,51 @@ const WAREHOUSES: WarehouseNode[] = [
   },
   {
     id: 'wh-2',
-    name: 'Warehouse 2',
-    location: '',
-    status: 'building',
-    sqft: 480000,
+    name: 'Warehouse 2 — Chicago',
+    location: 'Chicago, IL',
+    status: 'live',
+    sqft: 485000,
     docks: 36,
-    throughput: 0,
-    utilisation: 0,
-    alerts: 0,
-    costPerCase: 0,
+    throughput: 2240,
+    utilisation: 84,
+    alerts: 5,
+    costPerCase: 1.18,
     isReal: false,
   },
   {
     id: 'wh-3',
-    name: 'Warehouse 3',
-    location: '',
-    status: 'offline',
-    sqft: 210000,
-    docks: 16,
-    throughput: 0,
-    utilisation: 0,
+    name: 'Warehouse 3 — Indianapolis',
+    location: 'Indianapolis, IN',
+    status: 'live',
+    sqft: 275000,
+    docks: 20,
+    throughput: 1580,
+    utilisation: 71,
     alerts: 1,
-    costPerCase: 0,
+    costPerCase: 1.31,
     isReal: false,
   },
   {
     id: 'wh-4',
-    name: 'Warehouse 4',
-    location: '',
-    status: 'planned',
-    sqft: 390000,
-    docks: 28,
+    name: 'Warehouse 4 — Milwaukee',
+    location: 'Milwaukee, WI',
+    status: 'offline',
+    sqft: 190000,
+    docks: 14,
     throughput: 0,
     utilisation: 0,
-    alerts: 0,
+    alerts: 2,
     costPerCase: 0,
     isReal: false,
   },
 ];
 
 // Geographic coordinates for each warehouse (real Midwest city locations)
+// lon is stored as positive; map usage negates it: coordinates={[-geo.lon, geo.lat]}
 const WH_GEO: Record<string, { lon: number; lat: number; city: string; state: string }> = {
-  'wh-1': { lon: 87.63, lat: 41.88, city: 'Chicago',      state: 'IL' },
-  'wh-2': { lon: 86.16, lat: 39.77, city: 'Indianapolis', state: 'IN' },
-  'wh-3': { lon: 82.99, lat: 39.96, city: 'Columbus',     state: 'OH' },
+  'wh-1': { lon: 84.51, lat: 39.10, city: 'Cincinnati',   state: 'OH' },
+  'wh-2': { lon: 87.63, lat: 41.88, city: 'Chicago',      state: 'IL' },
+  'wh-3': { lon: 86.16, lat: 39.77, city: 'Indianapolis', state: 'IN' },
   'wh-4': { lon: 87.91, lat: 43.04, city: 'Milwaukee',    state: 'WI' },
 };
 
@@ -2965,12 +3146,12 @@ const STATUS_CFG: Record<WHStatus, { label: string; color: string; bg: string; d
 function NetworkKPIBar({ activeScenario }: { activeScenario?: NetworkScenario }) {
   const proj = activeScenario?.projectedKPIBar;
   const kpis = [
-    { label: 'Total Network Throughput', value: proj ? proj.throughput          : '1,847', unit: 'cases/hr', trend: proj ? '' : '+6.2%', up: true },
-    { label: 'Active Warehouses',        value: '1',                                        unit: 'of 4',    trend: '',                  up: true },
-    { label: 'Network Utilisation',      value: proj ? proj.utilisation         : '78%',    unit: 'avg',     trend: proj ? '' : '-3pp',  up: false },
-    { label: 'Avg Cost per Case',        value: proj ? proj.costPerCase         : '$1.24',  unit: '/case',   trend: proj ? '' : '-$0.08',up: true },
-    { label: 'Order Fill Rate',          value: proj ? proj.fillRate            : '91%',    unit: '',        trend: '',                  up: true },
-    { label: 'Fleet Active',            value: '18',                                        unit: 'trucks',  trend: '',                  up: true },
+    { label: 'Total Network Throughput', value: proj ? proj.throughput          : '5,667', unit: 'cases/hr', trend: proj ? '' : '+8.4%', up: true },
+    { label: 'Active Warehouses',        value: proj ? '4' : '3',                           unit: 'of 4',    trend: '',                  up: true },
+    { label: 'Network Utilisation',      value: proj ? proj.utilisation         : '78%',    unit: 'avg',     trend: proj ? '' : '-2pp',  up: false },
+    { label: 'Avg Cost per Case',        value: proj ? proj.costPerCase         : '$1.24',  unit: '/case',   trend: proj ? '' : '-$0.06',up: true },
+    { label: 'Order Fill Rate',          value: proj ? proj.fillRate            : '93%',    unit: '',        trend: proj ? '' : '+2pp',  up: true },
+    { label: 'Fleet Active',             value: '42',                                        unit: 'trucks',  trend: '',                  up: true },
   ];
   return (
     <div style={{
@@ -3335,8 +3516,26 @@ function ScenarioPanel({ scenario, onClose }: { scenario: NetworkScenario; onClo
 }
 
 // ── Build Twin Modal ──────────────────────────────────────────────────────────
+
+// Midwest cities available for new warehouse placement (excludes existing sites)
+const AVAILABLE_CITIES: { label: string; city: string; state: string; lon: number; lat: number }[] = [
+  { label: 'Minneapolis, MN', city: 'Minneapolis', state: 'MN', lon: 93.27, lat: 44.98 },
+  { label: 'St. Louis, MO',   city: 'St. Louis',   state: 'MO', lon: 90.20, lat: 38.63 },
+  { label: 'Detroit, MI',     city: 'Detroit',      state: 'MI', lon: 83.05, lat: 42.33 },
+  { label: 'Cincinnati, OH',    city: 'Columbus',     state: 'OH', lon: 82.99, lat: 39.96 },
+  { label: 'Cleveland, OH',   city: 'Cleveland',    state: 'OH', lon: 81.70, lat: 41.50 },
+  { label: 'Green Bay, WI',   city: 'Green Bay',    state: 'WI', lon: 87.65, lat: 44.52 },
+  { label: 'Des Moines, IA',  city: 'Des Moines',   state: 'IA', lon: 93.62, lat: 41.60 },
+  { label: 'Kansas City, MO', city: 'Kansas City',  state: 'MO', lon: 94.58, lat: 39.10 },
+  { label: 'Louisville, KY',  city: 'Louisville',   state: 'KY', lon: 85.76, lat: 38.25 },
+  { label: 'Madison, WI',     city: 'Madison',      state: 'WI', lon: 89.40, lat: 43.07 },
+  { label: 'Omaha, NE',       city: 'Omaha',        state: 'NE', lon: 95.93, lat: 41.26 },
+  { label: 'Milwaukee, WI',   city: 'Milwaukee',    state: 'WI', lon: 87.91, lat: 43.04 },
+];
+
 interface TwinParams {
   name: string;
+  cityKey: string;  // key into AVAILABLE_CITIES
   sqft: number;
   recvDocks: number;
   shipDocks: number;
@@ -3350,6 +3549,7 @@ interface TwinParams {
 
 const DEFAULT_PARAMS: TwinParams = {
   name: 'Warehouse 5',
+  cityKey: 'Minneapolis, MN',
   sqft: 280000, recvDocks: 12, shipDocks: 10,
   zoneA: 40, zoneB: 35, zoneC: 25,
   shifts: 2, asrs: false, automation: 'medium',
@@ -3431,7 +3631,7 @@ function Slider({ label, value, min, max, step = 1, unit, onChange }: {
 
 function BuildTwinModal({ onClose, onCreated }: {
   onClose: () => void;
-  onCreated: (name: string, location: string) => void;
+  onCreated: (name: string, city: { label: string; city: string; state: string; lon: number; lat: number }) => void;
 }) {
   const [step, setStep]     = useState<1 | 2 | 3>(1);
   const [params, setParams] = useState<TwinParams>(DEFAULT_PARAMS);
@@ -3444,10 +3644,12 @@ function BuildTwinModal({ onClose, onCreated }: {
     setParams(prev => ({ ...prev, [k]: v }));
   }
 
+  const selectedCity = AVAILABLE_CITIES.find(c => c.label === params.cityKey) ?? AVAILABLE_CITIES[0];
+
   function handleCreate() {
     setCreating(true);
     setTimeout(() => {
-      onCreated(params.name, '');
+      onCreated(params.name, selectedCity);
     }, 1400);
   }
 
@@ -3606,19 +3808,39 @@ function BuildTwinModal({ onClose, onCreated }: {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>Identity</div>
-                <div>
-                  <label style={{ fontSize: 10, fontWeight: 600, color: T3, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Warehouse Name</label>
-                  <input
-                    value={params.name}
-                    onChange={e => setP('name', e.target.value)}
-                    placeholder="Warehouse 5"
-                    style={{
-                      width: '100%', boxSizing: 'border-box',
-                      background: PAGE, border: `1px solid ${BORDER}`,
-                      borderRadius: 8, padding: '8px 12px', color: T1, fontSize: 12,
-                      outline: 'none',
-                    }}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: T3, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Warehouse Name</label>
+                    <input
+                      value={params.name}
+                      onChange={e => setP('name', e.target.value)}
+                      placeholder="Warehouse 5"
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        background: PAGE, border: `1px solid ${BORDER}`,
+                        borderRadius: 8, padding: '8px 12px', color: T1, fontSize: 12,
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: T3, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>Location — City, State</label>
+                    <select
+                      value={params.cityKey}
+                      onChange={e => setP('cityKey', e.target.value)}
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        background: PAGE, border: `1px solid ${BORDER}`,
+                        borderRadius: 8, padding: '8px 12px', color: T1, fontSize: 12,
+                        outline: 'none', cursor: 'pointer',
+                      }}
+                    >
+                      {AVAILABLE_CITIES.map(c => (
+                        <option key={c.label} value={c.label}>{c.label}</option>
+                      ))}
+                    </select>
+                    <div style={{ fontSize: 9, color: T3, marginTop: 4 }}>Cities shown on the Midwest network map</div>
+                  </div>
                 </div>
               </div>
 
@@ -3720,7 +3942,7 @@ function BuildTwinModal({ onClose, onCreated }: {
                 </div>
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: T1 }}>{params.name || 'New Warehouse'}</div>
-                  <div style={{ fontSize: 12, color: T2 }}>{(params.sqft / 1000).toFixed(0)}K sq ft · {params.recvDocks + params.shipDocks} total docks</div>
+                  <div style={{ fontSize: 12, color: T2 }}>📍 {selectedCity.label} · {(params.sqft / 1000).toFixed(0)}K sq ft · {params.recvDocks + params.shipDocks} total docks</div>
                 </div>
                 <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
                   <div style={{ fontSize: 10, color: T3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Est. Go-Live</div>
@@ -3756,6 +3978,7 @@ function BuildTwinModal({ onClose, onCreated }: {
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Configuration Summary</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {[
+                    `📍 ${selectedCity.label}`,
                     `${params.recvDocks} receiving docks`,
                     `${params.shipDocks} shipping docks`,
                     `Zone A ${params.zoneA}% · B ${params.zoneB}% · C ${params.zoneC}%`,
@@ -3981,27 +4204,28 @@ function MidwestMapView({
                 onMouseEnter={() => setHovered(wh.id)}
                 onMouseLeave={() => setHovered(null)}
                 style={{ cursor: 'pointer' }}>
+                {/* All y values shifted -10 so the pin tip (formerly y=10) sits exactly on the coordinate */}
                 {scAff && <>
-                  <circle cy={-8} r={22} fill={scColor} style={{ animation: 'scenarioPulse 1.6s ease-in-out infinite' }} />
-                  <circle cy={-8} r={34} fill={scColor} style={{ animation: 'scenarioPulse2 1.6s ease-in-out infinite' }} />
+                  <circle cy={-18} r={22} fill={scColor} style={{ animation: 'scenarioPulse 1.6s ease-in-out infinite' }} />
+                  <circle cy={-18} r={34} fill={scColor} style={{ animation: 'scenarioPulse2 1.6s ease-in-out infinite' }} />
                 </>}
                 {(isSelected || isHov) && (
-                  <circle cy={-8} r={19} fill="none" stroke={cfg.fill} strokeWidth={2.5} opacity={0.45} />
+                  <circle cy={-18} r={19} fill="none" stroke={cfg.fill} strokeWidth={2.5} opacity={0.45} />
                 )}
-                <ellipse cy={8} rx={7} ry={3} fill="rgba(0,0,0,0.22)" />
-                <path d="M 0,10 L -11,-4 A 11,11 0 1,1 11,-4 Z" fill={cfg.fill} />
-                <circle cy={-8} r={5} fill="rgba(255,255,255,0.90)" />
+                <ellipse cy={-2} rx={7} ry={3} fill="rgba(0,0,0,0.22)" />
+                <path d="M 0,0 L -11,-14 A 11,11 0 1,1 11,-14 Z" fill={cfg.fill} />
+                <circle cy={-18} r={5} fill="rgba(255,255,255,0.90)" />
                 {wh.status === 'live' && (
-                  <circle cy={-8} r={15} fill="none" stroke={cfg.fill} strokeWidth={1.5} opacity={0.35} />
+                  <circle cy={-18} r={15} fill="none" stroke={cfg.fill} strokeWidth={1.5} opacity={0.35} />
                 )}
                 {wh.alerts > 0 && (
                   <g>
-                    <circle cx={11} cy={-18} r={7} fill="#ef4444" />
-                    <text x={11} y={-14} textAnchor="middle" fontSize={7} fontWeight={800} fill="#fff">{wh.alerts}</text>
+                    <circle cx={11} cy={-28} r={7} fill="#ef4444" />
+                    <text x={11} y={-24} textAnchor="middle" fontSize={7} fontWeight={800} fill="#fff">{wh.alerts}</text>
                   </g>
                 )}
-                <rect x={-30} y={14} width={60} height={15} rx={3} fill="rgba(10,18,36,0.75)" />
-                <text y={24} textAnchor="middle" fontSize={7.5} fontWeight={700} fill="#e2e8f0" style={{ pointerEvents: 'none' }}>
+                <rect x={-30} y={4} width={60} height={15} rx={3} fill="rgba(10,18,36,0.75)" />
+                <text y={14} textAnchor="middle" fontSize={7.5} fontWeight={700} fill="#e2e8f0" style={{ pointerEvents: 'none' }}>
                   {geo.city}, {geo.state}
                 </text>
               </g>
@@ -4237,8 +4461,8 @@ function WHSidePanel({
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
 
-        {/* Open Warehouse button */}
-        {isLive && (
+        {/* Open Warehouse button — only for the real simulation warehouse */}
+        {isLive && wh.isReal && (
           <button onClick={onLaunchWarehouse} style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             padding: '11px 0', borderRadius: 9, border: 'none', cursor: 'pointer',
@@ -4249,6 +4473,58 @@ function WHSidePanel({
             <Play size={11} fill="#fff" />
             Open Warehouse
           </button>
+        )}
+
+        {/* Under Construction banner for newly-created building warehouses */}
+        {wh.status === 'building' && (
+          <div style={{
+            background: '#fffbeb', border: '1.5px solid #fde68a',
+            borderRadius: 10, padding: '14px 16px', marginBottom: 20,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 18 }}>🔨</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>Under Construction</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#78350f', lineHeight: 1.55 }}>
+              Digital twin has been provisioned and site registration is complete. Physical construction and systems integration are in progress.
+            </div>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {[
+                { label: 'Site Registration',     done: true  },
+                { label: 'Digital Twin Created',   done: true  },
+                { label: 'Systems Integration',    done: false },
+                { label: 'Physical Build-out',     done: false },
+                { label: 'Go-Live Certification',  done: false },
+              ].map(({ label, done }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span style={{ fontSize: 11, color: done ? GREEN : '#d97706' }}>{done ? '✓' : '○'}</span>
+                  <span style={{ fontSize: 10, color: done ? T2 : '#92400e', fontWeight: done ? 600 : 400 }}>{label}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #fde68a', fontSize: 10, color: '#92400e', fontWeight: 600 }}>
+              Est. go-live: 14–22 weeks from today
+            </div>
+          </div>
+        )}
+
+        {/* Offline / Shutdown banner */}
+        {wh.status === 'offline' && (
+          <div style={{
+            background: '#fef2f2', border: '1.5px solid #fecaca',
+            borderRadius: 10, padding: '14px 16px', marginBottom: 20,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 16 }}>⛔</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#991b1b' }}>Site Offline — Shutdown</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#7f1d1d', lineHeight: 1.55 }}>
+              This facility is currently shut down. Operations have been suspended. Assets are in maintenance hold and the site is not processing any orders.
+            </div>
+            <div style={{ marginTop: 8, fontSize: 10, color: '#dc2626', fontWeight: 600 }}>
+              Reactivation requires network review approval.
+            </div>
+          </div>
         )}
 
         {/* KPIs */}
@@ -4492,15 +4768,36 @@ function WHSidePanel({
 }
 
 function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void }) {
-  const [activeScenario, setActiveScenario] = useState<string | null>(null);
-  const [running, setRunning] = useState(false);
-  const [showBuildModal, setShowBuildModal] = useState(false);
-  const [newSite, setNewSite] = useState<{ name: string; location: string } | null>(null);
-  const [selectedWH, setSelectedWH] = useState<string | null>(null);
+  const [activeScenario, setActiveScenario]   = useState<string | null>(null);
+  const [running, setRunning]                 = useState(false);
+  const [showBuildModal, setShowBuildModal]   = useState(false);
+  const [newSite, setNewSite]                 = useState<{ name: string; city: string } | null>(null);
+  const [selectedWH, setSelectedWH]           = useState<string | null>(null);
+  const [dynamicWHs, setDynamicWHs]           = useState<WarehouseNode[]>([]);
+  const dynamicIdRef                          = useRef(5);
 
-  function handleCreated(name: string, location: string) {
+  function handleCreated(name: string, cityEntry: { label: string; city: string; state: string; lon: number; lat: number }) {
+    const id = `wh-dyn-${dynamicIdRef.current++}`;
+    // Register geo so the map can render the pin
+    WH_GEO[id] = { lon: cityEntry.lon, lat: cityEntry.lat, city: cityEntry.city, state: cityEntry.state };
+    const newWH: WarehouseNode = {
+      id,
+      name,
+      location: cityEntry.label,
+      status: 'building',
+      sqft: 280000,
+      docks: 22,
+      throughput: 0,
+      utilisation: 0,
+      alerts: 0,
+      costPerCase: 0,
+      isReal: false,
+    };
+    setDynamicWHs(prev => [...prev, newWH]);
     setShowBuildModal(false);
-    setNewSite({ name, location });
+    setNewSite({ name, city: cityEntry.label });
+    // Auto-select the new warehouse on the map
+    setSelectedWH(id);
   }
 
   function runScenario(id: string) {
@@ -4513,7 +4810,8 @@ function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void 
   }
 
   const scenarioResult = NETWORK_SCENARIOS.find(s => s.id === activeScenario) ?? null;
-  const selectedWHData = selectedWH ? WAREHOUSES.find(w => w.id === selectedWH) ?? null : null;
+  const allWarehouses  = [...WAREHOUSES, ...dynamicWHs];
+  const selectedWHData = selectedWH ? allWarehouses.find(w => w.id === selectedWH) ?? null : null;
 
   function handlePanelScenario(id: string) {
     if (activeScenario === id) {
@@ -4550,7 +4848,7 @@ function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: GREEN, fontWeight: 600,
             background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '4px 10px' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: GREEN, display: 'inline-block' }} />
-            1 site live
+            3 sites live
           </div>
           <button onClick={() => setShowBuildModal(true)} style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px',
@@ -4609,64 +4907,190 @@ function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void 
       <div style={{ flex: 1, padding: '28px 28px', overflow: 'auto' }}>
         {/* Midwest map */}
         <MidwestMapView
-          warehouses={WAREHOUSES}
+          warehouses={allWarehouses}
           selected={selectedWH}
           onSelect={setSelectedWH}
           activeScenarioId={activeScenario}
         />
 
-        {/* Fleet + network summary strip */}
+        {/* Fleet + Network panels */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
-          {/* Fleet summary */}
-          <div style={{
-            background: CARD, border: `1px solid ${BORDER}`,
-            borderRadius: 14, padding: '20px 24px', boxShadow: CARDSH,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+
+          {/* ── Fleet Operations ── */}
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '20px 24px', boxShadow: CARDSH, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Truck size={14} color="#1d4ed8" />
               <span style={{ fontSize: 13, fontWeight: 700, color: T1 }}>Fleet Operations</span>
               <span style={{ fontSize: 10, color: T3, marginLeft: 4 }}>across all sites</span>
+              <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, color: GREEN, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '2px 7px' }}>LIVE</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+
+            {/* Summary row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
               {[
-                { label: 'Active Trucks', value: '18' },
-                { label: 'In Transit',    value: '11' },
-                { label: 'At Dock',       value: '7'  },
-                { label: 'Avg ETA',       value: '23m' },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#1d4ed8' }}>{value}</div>
-                  <div style={{ fontSize: 9, color: T3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 2 }}>{label}</div>
+                { label: 'Active',    value: '42',  sub: 'trucks',  color: '#1d4ed8' },
+                { label: 'In Transit',value: '26',  sub: 'en route',color: '#0891b2' },
+                { label: 'At Dock',   value: '16',  sub: 'loading', color: '#7c3aed' },
+                { label: 'Avg ETA',   value: '19m', sub: 'delivery',color: T1 },
+                { label: 'On-Time',   value: '94%', sub: 'rate',    color: GREEN },
+                { label: 'Delayed',   value: '3',   sub: 'trucks',  color: RED },
+              ].map(({ label, value, sub, color }) => (
+                <div key={label} style={{ textAlign: 'center', background: PAGE, borderRadius: 8, padding: '10px 4px' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color, letterSpacing: '-0.02em' }}>{value}</div>
+                  <div style={{ fontSize: 8, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 2 }}>{label}</div>
+                  <div style={{ fontSize: 8, color: T3, marginTop: 1 }}>{sub}</div>
                 </div>
               ))}
+            </div>
+
+            {/* Site allocation */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Truck Allocation by Site</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  { city: 'Cincinnati, OH',     active: 18, docked: 6,  transit: 12, color: '#1d4ed8' },
+                  { city: 'Chicago, IL',      active: 16, docked: 7,  transit: 9,  color: '#0891b2' },
+                  { city: 'Indianapolis, IN', active: 8,  docked: 3,  transit: 5,  color: '#7c3aed' },
+                ].map(({ city, active, docked, transit, color }) => (
+                  <div key={city} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: T2, fontWeight: 600, minWidth: 140 }}>{city}</span>
+                    <div style={{ flex: 1, height: 6, background: BORDER, borderRadius: 3, position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ width: `${(active / 42) * 100}%`, height: '100%', background: color, borderRadius: 3, opacity: 0.85 }} />
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 700, color, minWidth: 20, textAlign: 'right' }}>{active}</span>
+                    <span style={{ fontSize: 9, color: T3 }}>{docked} docked · {transit} moving</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Performance metrics */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Performance</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                {[
+                  { label: 'Avg Dock Time', value: '42 min' },
+                  { label: 'Miles Today',   value: '12,480' },
+                  { label: 'Fuel Eff.',     value: '7.2 MPG' },
+                  { label: 'Loads Today',   value: '164' },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ background: PAGE, borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: T1 }}>{value}</div>
+                    <div style={{ fontSize: 8, color: T3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recent events */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Recent Events</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {[
+                  { dot: '#16a34a', msg: 'T-042 docked at Cincinnati DC',    time: '3m ago' },
+                  { dot: '#0891b2', msg: 'T-017 departed Indianapolis DC',  time: '11m ago' },
+                  { dot: '#f59e0b', msg: 'T-038 ETA revised — Chicago DC',  time: '18m ago' },
+                  { dot: '#dc2626', msg: 'T-011 delayed — I-90 congestion', time: '24m ago' },
+                ].map(({ dot, msg, time }) => (
+                  <div key={msg} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, color: T2, flex: 1 }}>{msg}</span>
+                    <span style={{ fontSize: 9, color: T3, whiteSpace: 'nowrap' }}>{time}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Network health */}
-          <div style={{
-            background: CARD, border: `1px solid ${BORDER}`,
-            borderRadius: 14, padding: '20px 24px', boxShadow: CARDSH,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          {/* ── Network Health ── */}
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '20px 24px', boxShadow: CARDSH, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Activity size={14} color="#1d4ed8" />
               <span style={{ fontSize: 13, fontWeight: 700, color: T1 }}>Network Health</span>
+              <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, color: '#0891b2', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 4, padding: '2px 7px' }}>3 SITES MONITORED</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[
-                { label: 'Warehouse 1 throughput', pct: 78, color: '#1d4ed8' },
-                { label: 'Dock utilisation',       pct: 83, color: '#0891b2' },
-                { label: 'Order fill rate',        pct: 91, color: GREEN },
-              ].map(({ label, pct, color }) => (
-                <div key={label}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, color: T2, fontWeight: 500 }}>{label}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color }}>{pct}%</span>
+
+            {/* Throughput by site */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Throughput vs Capacity</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { city: 'Cincinnati OH',     cur: 1847, max: 2400, color: '#1d4ed8' },
+                  { city: 'Chicago IL',      cur: 2240, max: 2800, color: '#0891b2' },
+                  { city: 'Indianapolis IN', cur: 1580, max: 2200, color: '#7c3aed' },
+                  { city: 'Milwaukee WI',    cur: 0,    max: 1600, color: '#dc2626', offline: true },
+                ].map(({ city, cur, max, color, offline }) => (
+                  <div key={city}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />
+                        <span style={{ fontSize: 11, color: T2, fontWeight: 500 }}>{city}</span>
+                        {offline && <span style={{ fontSize: 8, fontWeight: 800, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 3, padding: '1px 5px' }}>OFFLINE</span>}
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: offline ? '#dc2626' : color }}>
+                        {offline ? 'Shutdown' : `${cur.toLocaleString()} / ${max.toLocaleString()} /hr`}
+                      </span>
+                    </div>
+                    <div style={{ height: 5, background: BORDER, borderRadius: 3 }}>
+                      <div style={{ width: `${(cur / max) * 100}%`, height: '100%', background: offline ? '#fca5a5' : color, borderRadius: 3, opacity: 0.85 }} />
+                    </div>
                   </div>
-                  <div style={{ height: 5, background: BORDER, borderRadius: 3 }}>
-                    <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3 }} />
+                ))}
+              </div>
+            </div>
+
+            {/* Key metrics bars */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Key Metrics (Active Sites)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {[
+                  { label: 'Order Fill Rate',      pct: 93, color: GREEN,    note: '↑ +2pp WoW' },
+                  { label: 'Dock Utilisation',     pct: 82, color: '#0891b2',note: '3 sites avg' },
+                  { label: 'Inventory Accuracy',   pct: 98, color: '#1d4ed8', note: 'cycle count' },
+                  { label: 'Labor Efficiency',     pct: 87, color: '#7c3aed',note: 'vs standard' },
+                  { label: 'Inbound On-Time',      pct: 91, color: '#f59e0b',note: 'last 48hrs' },
+                ].map(({ label, pct, color, note }) => (
+                  <div key={label}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span style={{ fontSize: 10, color: T2, fontWeight: 500 }}>{label}</span>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontSize: 9, color: T3 }}>{note}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color }}>{pct}%</span>
+                      </div>
+                    </div>
+                    <div style={{ height: 4, background: BORDER, borderRadius: 3 }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, opacity: 0.8 }} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+
+            {/* Alert summary */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Open Alerts by Site</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[
+                  { city: 'Chicago DC',      total: 5, critical: 2, color: '#0891b2' },
+                  { city: 'Cincinnati DC',     total: 3, critical: 1, color: '#1d4ed8' },
+                  { city: 'Indianapolis DC', total: 1, critical: 0, color: '#7c3aed' },
+                  { city: 'Milwaukee DC',    total: 2, critical: 0, color: '#dc2626', note: 'maintenance' },
+                ].map(({ city, total, critical, color, note }) => (
+                  <div key={city} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, color: T2, fontWeight: 600, flex: 1 }}>{city}</span>
+                    <span style={{ fontSize: 9, color: T3 }}>{note ?? `${critical} critical`}</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 800,
+                      color: critical > 0 ? RED : T3,
+                      background: critical > 0 ? '#fef2f2' : PAGE,
+                      border: `1px solid ${critical > 0 ? '#fecaca' : BORDER}`,
+                      borderRadius: 4, padding: '1px 7px',
+                    }}>{total} open</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -4735,12 +5159,19 @@ function NetworkTwinPage({ onLaunchWarehouse }: { onLaunchWarehouse: () => void 
           boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
           minWidth: 420,
         }}>
-          <CheckCircle size={18} color={GREEN} />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: T1 }}>Twin Created — {newSite.name}</div>
-            <div style={{ fontSize: 11, color: T2, marginTop: 1 }}>Building phase started · Est. go-live tracked in network</div>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <CheckCircle size={18} color={GREEN} />
           </div>
-          <button onClick={() => setNewSite(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: T3, fontSize: 16 }}>✕</button>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T1 }}>{newSite.name} — Under Construction</div>
+            <div style={{ fontSize: 11, color: T2, marginTop: 1 }}>
+              📍 {newSite.city} · Site registered in network · Digital twin provisioning…
+            </div>
+            <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600, marginTop: 3 }}>
+              🔨 Building phase started · Pin visible on map · Est. go-live: 14–22 weeks
+            </div>
+          </div>
+          <button onClick={() => setNewSite(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: T3, fontSize: 16, flexShrink: 0 }}>✕</button>
         </div>
       )}
 
@@ -4884,10 +5315,14 @@ export default function App() {
   const [atSubView, setAtSubView]       = useState<ATSubView>('live');
   const [adSubView, setAdSubView]       = useState<ADSubView>('live-ops');
   const [dockPhase, setDockPhase]       = useState<'baseline' | 'optimised'>('baseline');
+  const [loadMode,  setLoadMode]        = useState<'baseline' | 'optimised'>('baseline');
   const { improvementScenario }         = useSimulationStore();
 
   const effectiveSubView: SubView = (subView === 'kpi-impact' && !improvementScenario) ? 'overview' : subView;
-  const effectiveAdSubView: ADSubView = (adSubView === 'kpi-impact' && dockPhase !== 'optimised') ? 'simulation' : adSubView;
+  const effectiveAdSubView: ADSubView =
+    (adSubView === 'kpi-impact' && dockPhase !== 'optimised') ? 'simulation' :
+    (adSubView === 'load-kpi'   && loadMode  !== 'optimised') ? 'simulation' :
+    adSubView;
 
   if (appView === 'home') {
     return <HomePage onEnter={() => setAppView('network')} />;
@@ -4905,6 +5340,7 @@ export default function App() {
         atSubView={atSubView} setAtSubView={setAtSubView}
         adSubView={effectiveAdSubView} setAdSubView={setAdSubView}
         dockPhase={dockPhase}
+        loadMode={loadMode}
         onBackToNetwork={() => setAppView('network')}
       />
 
@@ -4921,7 +5357,7 @@ export default function App() {
         <AdaptiveTwinView atSubView={atSubView} setAtSubView={setAtSubView} />
       )}
       {mainTab === 'autonomous-dock' && (
-        <AutonomousDockView adSubView={effectiveAdSubView} setAdSubView={setAdSubView} dockPhase={dockPhase} setDockPhase={setDockPhase} />
+        <AutonomousDockView adSubView={effectiveAdSubView} setAdSubView={setAdSubView} dockPhase={dockPhase} setDockPhase={setDockPhase} loadMode={loadMode} setLoadMode={setLoadMode} />
       )}
     </div>
   );

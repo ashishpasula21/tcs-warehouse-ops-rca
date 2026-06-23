@@ -95,17 +95,17 @@ export function OperatorModel({ route, vestColor = '#f5d700', hatColor = '#f5d70
 
       {/* Head */}
       <mesh position={[0, 1.58, 0]}>
-        <sphereGeometry args={[0.17, 14, 14]} />
+        <sphereGeometry args={[0.17, 8, 8]} />
         <meshStandardMaterial color="#c8a880" roughness={0.88} />
       </mesh>
 
       {/* Hard hat */}
       <mesh position={[0, 1.72, 0]}>
-        <sphereGeometry args={[0.21, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.52]} />
+        <sphereGeometry args={[0.21, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.52]} />
         <meshStandardMaterial color={hatColor} roughness={0.45} />
       </mesh>
       <mesh position={[0, 1.64, 0]}>
-        <cylinderGeometry args={[0.26, 0.26, 0.03, 16]} />
+        <cylinderGeometry args={[0.26, 0.26, 0.03, 10]} />
         <meshStandardMaterial color={hatColor === '#f5d700' ? '#e8c800' : hatColor} roughness={0.5} />
       </mesh>
 
