@@ -48,7 +48,7 @@ const CARDSH = '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)';
 type AppView    = 'home' | 'network' | 'warehouse';
 type MainTab    = 'warehouse-ops' | 'adaptive-twin' | 'autonomous-dock';
 type SubView    = 'overview' | 'simulation' | 'analytics' | 'ai' | 'kpi-impact';
-type ATSubView  = 'live' | 'anomalies' | 'ai-scenarios' | 'simulation' | 'control';
+type ATSubView  = 'live' | 'anomalies' | 'ai-scenarios' | 'control';
 type ADSubView  = 'live-ops' | 'ai-decisions' | 'simulation' | 'kpi-impact';
 
 // ── Main tabs config ──────────────────────────────────────────────────────────
@@ -178,18 +178,6 @@ function TopNav({
                 </button>
               )}
             </div>
-            <button onClick={() => setAtSubView('simulation')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700,
-                cursor: 'pointer', border: 'none', transition: 'all 0.15s',
-                background: atSubView === 'simulation' ? '#0f172a' : '#7c3aed',
-                color: '#fff',
-                boxShadow: '0 1px 4px rgba(124,58,237,0.4)',
-              }}>
-              <Cpu size={11} />
-              3D Twin
-            </button>
           </div>
         );
       })()}
@@ -809,7 +797,7 @@ function SimulationView({ setSubView }: { setSubView: (v: SubView) => void }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 16px', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
         <button onClick={() => setSubView('overview')}
           style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: T2, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: 6 }}>
           <ArrowLeft size={12} />
@@ -851,20 +839,6 @@ function SimulationView({ setSubView }: { setSubView: (v: SubView) => void }) {
           </button>
         )}
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          {[
-            { color: '#f5c518', label: 'FL-1 Rivera' },
-            { color: '#e8a000', label: 'FL-2 Chen' },
-            { color: '#d49000', label: 'FL-3 Kim' },
-            { color: '#cc2200', label: 'PJ-1 Williams' },
-            { color: '#aa1a00', label: 'PJ-2 Patel' },
-          ].map(e => (
-            <div key={e.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: e.color }} />
-              <span style={{ fontSize: 11, color: T2 }}>{e.label}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* 3D viewport + optional side panel */}
@@ -885,6 +859,22 @@ function SimulationView({ setSubView }: { setSubView: (v: SubView) => void }) {
               <div key={z as string} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                 <div style={{ width: 10, height: 10, borderRadius: 2, background: c as string, flexShrink: 0 }} />
                 <span style={{ fontSize: 11, color: T1 }}>{z}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Operator legend */}
+          <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(255,255,255,0.92)', border: `1px solid ${BORDER}`, borderRadius: 10, padding: '8px 12px', pointerEvents: 'none', boxShadow: CARDSH, display: 'flex', gap: 12 }}>
+            {[
+              { color: '#f5c518', label: 'FL-1 Rivera' },
+              { color: '#e8a000', label: 'FL-2 Chen' },
+              { color: '#d49000', label: 'FL-3 Kim' },
+              { color: '#cc2200', label: 'PJ-1 Williams' },
+              { color: '#aa1a00', label: 'PJ-2 Patel' },
+            ].map(e => (
+              <div key={e.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: e.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 10, color: T1, fontWeight: 600 }}>{e.label}</span>
               </div>
             ))}
           </div>
@@ -1196,7 +1186,7 @@ function ATAIScenariosView({ setAtSubView }: { setAtSubView: (v: ATSubView) => v
     setCurrentTime(0);
     setPlaybackSpeed(60);
     setPlaying(true);
-    setAtSubView('simulation');
+    setAtSubView('live');
   };
 
   return (
@@ -1301,9 +1291,9 @@ function ATAIScenariosView({ setAtSubView }: { setAtSubView: (v: ATSubView) => v
                 </div>
                 {isActive ? (
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => setAtSubView('simulation')}
+                    <button onClick={() => setAtSubView('live')}
                       style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: '#f0fdf4', color: GREEN, border: '1px solid #86efac' }}>
-                      View 3D Twin
+                      View Live 3D
                     </button>
                     <button onClick={() => { setAtScenario(null); setPlaying(false); setCurrentTime(0); }}
                       style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: PAGE, color: T2, border: `1px solid ${BORDER}` }}>
@@ -1314,7 +1304,7 @@ function ATAIScenariosView({ setAtSubView }: { setAtSubView: (v: ATSubView) => v
                   <button onClick={() => handleRunSim(s.id)}
                     style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: catColor, color: '#fff', border: 'none', boxShadow: `0 2px 8px ${catColor}44` }}>
                     <Play size={12} />
-                    Run 3D Simulation
+                    Run Simulation
                   </button>
                 )}
               </div>
@@ -1326,90 +1316,6 @@ function ATAIScenariosView({ setAtSubView }: { setAtSubView: (v: ATSubView) => v
   );
 }
 
-function ATSimulationView({ setAtSubView }: { setAtSubView: (v: ATSubView) => void }) {
-  const { atScenario, setAtScenario, setCurrentTime, setPlaying } = useSimulationStore();
-  const s = AT_SCENARIOS.find(sc => sc.id === atScenario);
-
-  const backToLive = () => {
-    setAtScenario(null);
-    setCurrentTime(0);
-    setPlaying(false);
-    setAtSubView('live');
-  };
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
-        <button onClick={() => setAtSubView('live')}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: T2, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: 6 }}>
-          <ArrowLeft size={12} /> Back
-        </button>
-        <div style={{ width: 1, height: 16, background: BORDER }} />
-        {atScenario && s ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: 99, padding: '4px 12px' }}>
-            <Zap size={11} color="#7c3aed" />
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#6d28d9' }}>{AT_SCENARIO_LABELS[atScenario]}</span>
-            <span style={{ fontSize: 11, color: T2 }}>— Improved Scenario</span>
-          </div>
-        ) : (
-          <span style={{ fontSize: 13, fontWeight: 600, color: T1 }}>Adaptive Twin · Baseline Operations</span>
-        )}
-        <div style={{ flex: 1 }} />
-        {atScenario && (
-          <>
-            <button onClick={() => setAtSubView('control')}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#f0fdf4', color: GREEN, border: '1px solid #bbf7d0' }}>
-              <Settings size={11} />
-              Control System
-            </button>
-            <button onClick={backToLive}
-              style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: T2, background: PAGE, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '5px 10px', cursor: 'pointer' }}>
-              <RotateCcw size={11} /> Reset
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* 3D full width */}
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <AdaptiveTwinScene />
-      </div>
-
-      {/* KPI impact strip */}
-      {atScenario && s && (
-        <div style={{ flexShrink: 0, background: '#0f172a', borderTop: '1px solid #1e293b', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, marginRight: 8 }}>
-            <Zap size={13} color="#fbbf24" />
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24', whiteSpace: 'nowrap' }}>KPI Impact</span>
-            <span style={{ fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>vs. baseline</span>
-          </div>
-          <div style={{ width: 1, height: 32, background: '#1e293b', flexShrink: 0 }} />
-          <div style={{ display: 'flex', gap: 6, flex: 1, overflow: 'hidden' }}>
-            {[
-              { label: 'Throughput',    before: AT_BASELINE.throughput,       after: AT_BASELINE.throughput + s.kpiDelta.throughput,       delta: `+${s.kpiDelta.throughput}`,                     unit: 'cases/hr' },
-              { label: 'Retrieval',     before: AT_BASELINE.retrievalTime,    after: AT_BASELINE.retrievalTime + s.kpiDelta.retrievalTime,  delta: `${s.kpiDelta.retrievalTime}s`,                  unit: 'sec'      },
-              { label: 'Conv. Util',    before: AT_BASELINE.conveyorUtil,     after: AT_BASELINE.conveyorUtil + s.kpiDelta.conveyorUtil,    delta: `+${s.kpiDelta.conveyorUtil}pp`,                 unit: '%'        },
-              { label: 'Palletizer',    before: AT_BASELINE.pallatizerUptime, after: AT_BASELINE.pallatizerUptime + s.kpiDelta.pallatizerUptime, delta: `+${s.kpiDelta.pallatizerUptime}pp`,        unit: '%'        },
-              { label: 'Fill Rate',     before: AT_BASELINE.fillRate,         after: AT_BASELINE.fillRate + s.kpiDelta.fillRate,           delta: `+${s.kpiDelta.fillRate}pp`,                     unit: '%'        },
-            ].map(k => (
-              <div key={k.label} style={{ flex: 1, minWidth: 0, background: '#1e293b', borderRadius: 8, padding: '6px 10px', border: '1px solid #334155' }}>
-                <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k.label}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 11, color: '#94a3b8', textDecoration: 'line-through' }}>{k.before}</span>
-                  <span style={{ fontSize: 10, color: '#475569' }}>→</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: '#f1f5f9' }}>{k.after}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', background: '#14532d', borderRadius: 4, padding: '1px 5px' }}>{k.delta}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      <SimulationControls />
-    </div>
-  );
-}
 
 function ATControlSystemView() {
   const { atScenario } = useSimulationStore();
@@ -1523,7 +1429,6 @@ export function AdaptiveTwinView({ atSubView, setAtSubView }: { atSubView: ATSub
       {effective === 'live'        && <ATLiveView        setAtSubView={setAtSubView} />}
       {effective === 'anomalies'   && <ATAnomaliesView   setAtSubView={setAtSubView} />}
       {effective === 'ai-scenarios'&& <ATAIScenariosView setAtSubView={setAtSubView} />}
-      {effective === 'simulation'  && <ATSimulationView  setAtSubView={setAtSubView} />}
       {effective === 'control'     && <ATControlSystemView />}
     </>
   );
