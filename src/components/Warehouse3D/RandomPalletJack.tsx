@@ -33,10 +33,19 @@ const SPAWN: Record<string, [number, number]> = {
   'pj-r2': [+20, +10],
 };
 
-const SPEED     = 0.004;  // units/ms (same as original PJ routes)
-const MIN_PAUSE = 1200;
-const MAX_PAUSE = 6000;
-const YIELD_RADIUS = 4.5; // back off from forklifts and other PJs
+const SPEED      = 0.004;  // units/ms (same as original PJ routes)
+const MIN_PAUSE  = 1200;
+const MAX_PAUSE  = 6000;
+const YIELD_RADIUS = 6.0; // forklift is ~4.5 units long at scale 1.5 — give extra clearance
+
+const SHIP_RACK_XS = [-59, -49, -42, 56, 60] as const;
+const RACK_HALF_W  = 2.2;
+
+function isInShipRack(x: number, z: number): boolean {
+  if (z >= 13 && z <= 28)
+    return SHIP_RACK_XS.some(rx => Math.abs(x - rx) < RACK_HALF_W);
+  return false;
+}
 
 /** Route E-W via the pick lane when crossing z-zones to avoid rack geometry. */
 function planPJPath(fx: number, fz: number, tx: number, tz: number): [number, number][] {
@@ -70,12 +79,13 @@ export function RandomPalletJack({
 
   const [spawnX, spawnZ] = SPAWN[id] ?? [0, +17];
 
-  const posX     = useRef(spawnX);
-  const posZ     = useRef(spawnZ);
-  const segPath  = useRef<[number, number][]>([]);
-  const pauseMs  = useRef(0);
-  const carrying = useRef(false);
-  const rngState = useRef(seed * 48271 + 1);
+  const posX      = useRef(spawnX);
+  const posZ      = useRef(spawnZ);
+  const segPath   = useRef<[number, number][]>([]);
+  const pauseMs   = useRef(0);
+  const carrying  = useRef(false);
+  const rngState  = useRef(seed * 48271 + 1);
+  const lastSimMs = useRef(-1);
 
   const rand = () => {
     rngState.current = (rngState.current * 1664525 + 1013904223) >>> 0;
@@ -87,7 +97,27 @@ export function RandomPalletJack({
 
   useFrame((_, delta) => {
     const { playbackSpeed, isPlaying, currentTime } = useSimulationStore.getState();
-    if (!groupRef.current || !isPlaying) return;
+    if (!groupRef.current) return;
+
+    // Detect timeline scrub — snap to nearest safe waypoint
+    if (lastSimMs.current >= 0) {
+      const jump = currentTime - lastSimMs.current;
+      if (jump > 2000 || jump < 0) {
+        let bestWp = PJ_WAYPOINTS[0];
+        let bestDist = Infinity;
+        for (const wp of PJ_WAYPOINTS) {
+          const d = (wp[0] - posX.current) ** 2 + (wp[1] - posZ.current) ** 2;
+          if (d < bestDist) { bestDist = d; bestWp = wp; }
+        }
+        posX.current = bestWp[0];
+        posZ.current = bestWp[1];
+        segPath.current = [];
+        pauseMs.current = 500;
+      }
+    }
+    lastSimMs.current = currentTime;
+
+    if (!isPlaying) return;
 
     // Hold at spawn until startAfterMs of simulation time has elapsed
     if (currentTime < startAfterMs) {
@@ -132,8 +162,14 @@ export function RandomPalletJack({
         }
       } else {
         const step = Math.min(dist, SPEED * dt);
-        posX.current += (dx / dist) * step;
-        posZ.current += (dz / dist) * step;
+        const nx = posX.current + (dx / dist) * step;
+        const nz = posZ.current + (dz / dist) * step;
+        if (isInShipRack(nx, nz)) {
+          segPath.current = []; // abort — reroute via pick lane next tick
+        } else {
+          posX.current = nx;
+          posZ.current = nz;
+        }
         const tgt  = Math.atan2(dx, dz);
         const diff = ((tgt - angleRef.current + Math.PI) % (2 * Math.PI)) - Math.PI;
         angleRef.current += diff * Math.min(1, delta * 5);

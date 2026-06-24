@@ -14,6 +14,7 @@ export const LEVELS    =  6;
 export const LEVEL_H   =  2.2;
 export const RACK_H    = LEVELS * LEVEL_H;     // 13.2
 
+export const RACK_DEPTH   = 2.4;   // z-depth of each rack unit (front face → back face)
 export const AISLE_Z      = [-8,  8] as const;
 export const RACK_INNER_Z = [-4, +4] as const;
 export const RACK_OUTER_Z = [-12,+12] as const;
@@ -131,37 +132,60 @@ function Floor() {
   );
 }
 
-// ─── Rack wall ────────────────────────────────────────────────────────────────
-// Warehouse Ops wireframe rack style: orange beams, steel uprights, cardboard boxes, no back panel
+// ─── Rack wall — full 3D rectangular structure ────────────────────────────────
+// flip=true → rack body extends in -z (outer racks at negative z, inner at +z aisles)
+// flip=false → rack body extends in +z
 function RackWall({zPos,flip}:{zPos:number;flip:boolean}) {
-  const dz = flip ? -0.28 : 0.28; // box offset toward aisle face
+  const extDir = flip ? -1 : 1;
+  const backZ  = zPos + extDir * RACK_DEPTH;
+  const midZ   = zPos + extDir * RACK_DEPTH / 2;
+  const postCol = '#c04a00';
+
   return (
     <group>
-      {/* Upright posts at each bay boundary — matches Warehouse Ops style */}
+      {/* Front + back uprights at every bay boundary */}
       {Array.from({length:BAYS+1},(_,i)=>{
         const bx = RACK_X0 + i*BAY_W;
         return (
-          <mesh key={i} position={[bx, RACK_H/2, zPos]}>
-            <boxGeometry args={[0.14, RACK_H+0.3, 0.14]} />
-            <meshStandardMaterial color="#6e6e6e" metalness={0.7} roughness={0.3} />
-          </mesh>
+          <group key={i}>
+            <mesh position={[bx, RACK_H/2, zPos]}>
+              <boxGeometry args={[0.18, RACK_H+0.3, 0.18]} />
+              <meshStandardMaterial color={postCol} metalness={0.45} roughness={0.45} />
+            </mesh>
+            <mesh position={[bx, RACK_H/2, backZ]}>
+              <boxGeometry args={[0.18, RACK_H+0.3, 0.18]} />
+              <meshStandardMaterial color={postCol} metalness={0.45} roughness={0.45} />
+            </mesh>
+          </group>
         );
       })}
-      {/* Horizontal level beams running full span — orange-rust, matches Warehouse Ops */}
+      {/* Horizontal beams front + back at every level, plus depth cross-rails */}
       {Array.from({length:LEVELS+1},(_,l)=>(
-        <mesh key={l} position={[(RACK_X0+RACK_X1)/2, l*LEVEL_H, zPos]}>
-          <boxGeometry args={[RACK_SPAN+0.1, 0.10, 0.10]} />
-          <meshStandardMaterial color="#c04a00" metalness={0.5} roughness={0.4} />
-        </mesh>
+        <group key={l}>
+          <mesh position={[(RACK_X0+RACK_X1)/2, l*LEVEL_H, zPos]}>
+            <boxGeometry args={[RACK_SPAN+0.1, 0.14, 0.18]} />
+            <meshStandardMaterial color={postCol} metalness={0.45} roughness={0.45} />
+          </mesh>
+          <mesh position={[(RACK_X0+RACK_X1)/2, l*LEVEL_H, backZ]}>
+            <boxGeometry args={[RACK_SPAN+0.1, 0.14, 0.18]} />
+            <meshStandardMaterial color={postCol} metalness={0.45} roughness={0.45} />
+          </mesh>
+          {Array.from({length:BAYS+1},(_,i)=>(
+            <mesh key={i} position={[RACK_X0+i*BAY_W, l*LEVEL_H, midZ]}>
+              <boxGeometry args={[0.12, 0.12, RACK_DEPTH]} />
+              <meshStandardMaterial color={postCol} metalness={0.4} roughness={0.5} />
+            </mesh>
+          ))}
+        </group>
       ))}
-      {/* Cardboard boxes per slot (outer static walls, ~70% fill) */}
+      {/* Full-depth cardboard boxes per slot (~70% fill) */}
       {Array.from({length:LEVELS},(_,l)=>
         Array.from({length:BAYS},(_,b)=>{
           if((l*7+b*3)%5===0) return null;
           return (
             <mesh key={`${l}-${b}`}
-                  position={[RACK_X0+(b+0.5)*BAY_W, l*LEVEL_H+LEVEL_H/2, zPos+dz]}>
-              <boxGeometry args={[BAY_W-0.38, LEVEL_H-0.28, 0.58]} />
+                  position={[RACK_X0+(b+0.5)*BAY_W, l*LEVEL_H+LEVEL_H/2, midZ]}>
+              <boxGeometry args={[BAY_W-0.38, LEVEL_H-0.28, RACK_DEPTH-0.40]} />
               <meshStandardMaterial color={SKU_COLORS[(l*3+b*5)%SKU_COLORS.length]} roughness={0.88} />
             </mesh>
           );
@@ -968,11 +992,12 @@ function AisleShipping({zPos,atScenario,stateRef}:{zPos:number;atScenario:string
   );
 }
 
-// ─── Live rack wall (aisle-facing, boxes appear/disappear) ───────────────────
+// ─── Live rack wall — full 3D, boxes appear/disappear via ASRS state ─────────
 function RackWallLive({zPos,flip,stateRef}:{zPos:number;flip:boolean;stateRef:React.MutableRefObject<AisleState>}) {
-  const xC   = (RACK_X0+RACK_X1)/2;
-  const dz   = flip ? -0.32 : 0.32;
-  // One ref per bay×level slot
+  const extDir   = flip ? -1 : 1;
+  const backZ    = zPos + extDir * RACK_DEPTH;
+  const midZ     = zPos + extDir * RACK_DEPTH / 2;
+  const postCol  = '#c04a00';
   const slotRefs = useRef<(THREE.Mesh|null)[]>(Array(BAYS*LEVELS).fill(null));
   const lastDirty = useRef<boolean>(false);
 
@@ -989,36 +1014,53 @@ function RackWallLive({zPos,flip,stateRef}:{zPos:number;flip:boolean;stateRef:Re
 
   return (
     <group>
-      {/* Upright posts — Warehouse Ops wireframe style */}
+      {/* Front + back uprights */}
       {Array.from({length:BAYS+1},(_,i)=>{
         const bx = RACK_X0 + i*BAY_W;
         return (
-          <mesh key={i} position={[bx, RACK_H/2, zPos]}>
-            <boxGeometry args={[0.14, RACK_H+0.3, 0.14]} />
-            <meshStandardMaterial color="#6e6e6e" metalness={0.7} roughness={0.3} />
-          </mesh>
+          <group key={i}>
+            <mesh position={[bx, RACK_H/2, zPos]}>
+              <boxGeometry args={[0.18, RACK_H+0.3, 0.18]} />
+              <meshStandardMaterial color={postCol} metalness={0.45} roughness={0.45} />
+            </mesh>
+            <mesh position={[bx, RACK_H/2, backZ]}>
+              <boxGeometry args={[0.18, RACK_H+0.3, 0.18]} />
+              <meshStandardMaterial color={postCol} metalness={0.45} roughness={0.45} />
+            </mesh>
+          </group>
         );
       })}
-      {/* Horizontal level beams — orange-rust, matches Warehouse Ops */}
+      {/* Horizontal beams front + back + depth cross-rails */}
       {Array.from({length:LEVELS+1},(_,l)=>(
-        <mesh key={l} position={[(RACK_X0+RACK_X1)/2, l*LEVEL_H, zPos]}>
-          <boxGeometry args={[RACK_SPAN+0.1, 0.10, 0.10]} />
-          <meshStandardMaterial color="#c04a00" metalness={0.5} roughness={0.4} />
-        </mesh>
+        <group key={l}>
+          <mesh position={[(RACK_X0+RACK_X1)/2, l*LEVEL_H, zPos]}>
+            <boxGeometry args={[RACK_SPAN+0.1, 0.14, 0.18]} />
+            <meshStandardMaterial color={postCol} metalness={0.45} roughness={0.45} />
+          </mesh>
+          <mesh position={[(RACK_X0+RACK_X1)/2, l*LEVEL_H, backZ]}>
+            <boxGeometry args={[RACK_SPAN+0.1, 0.14, 0.18]} />
+            <meshStandardMaterial color={postCol} metalness={0.45} roughness={0.45} />
+          </mesh>
+          {Array.from({length:BAYS+1},(_,i)=>(
+            <mesh key={i} position={[RACK_X0+i*BAY_W, l*LEVEL_H, midZ]}>
+              <boxGeometry args={[0.12, 0.12, RACK_DEPTH]} />
+              <meshStandardMaterial color={postCol} metalness={0.4} roughness={0.5} />
+            </mesh>
+          ))}
+        </group>
       ))}
-      {/* Per-slot box (visibility driven by shelf state) */}
+      {/* Per-slot full-depth boxes — visibility driven by ASRS shelf state */}
       {Array.from({length:BAYS},(_,b)=>
         Array.from({length:LEVELS},(_,l)=>{
           const idx=b*LEVELS+l;
           const color=SKU_COLORS[(l*3+b*5)%SKU_COLORS.length];
           const initVisible=!!stateRef.current.shelf[`${b}-${l}`];
-          const dz = flip ? -0.28 : 0.28;
           return (
             <mesh key={idx}
                   ref={el=>{slotRefs.current[idx]=el;}}
-                  position={[RACK_X0+(b+0.5)*BAY_W, l*LEVEL_H+LEVEL_H/2, zPos+dz]}
+                  position={[RACK_X0+(b+0.5)*BAY_W, l*LEVEL_H+LEVEL_H/2, midZ]}
                   visible={initVisible}>
-              <boxGeometry args={[BAY_W-0.38, LEVEL_H-0.28, 0.58]} />
+              <boxGeometry args={[BAY_W-0.38, LEVEL_H-0.28, RACK_DEPTH-0.40]} />
               <meshStandardMaterial color={color} roughness={0.88} />
             </mesh>
           );
@@ -1028,46 +1070,6 @@ function RackWallLive({zPos,flip,stateRef}:{zPos:number;flip:boolean;stateRef:Re
   );
 }
 
-// ─── Bulk Storage Rack (static, extends depth beyond ASRS zone) ──────────────
-// Additional pallet racking rows at z=±17 and ±22 — same visual style as RackWall
-function BulkStorageRack({zPos,flip,levels=5}:{zPos:number;flip:boolean;levels?:number}) {
-  const dz = flip ? -0.28 : 0.28;
-  const BULK_LEVELS = levels;
-  const BULK_LH = LEVEL_H;
-  const BULK_H = BULK_LEVELS * BULK_LH;
-  const BOX_COLORS = ['#c8924a','#b87c38','#d4a462','#bf8430','#c8924a','#d4a462'];
-  return (
-    <group>
-      {Array.from({length:BAYS+1},(_,i)=>{
-        const bx = RACK_X0 + i*BAY_W;
-        return (
-          <mesh key={i} position={[bx, BULK_H/2, zPos]}>
-            <boxGeometry args={[0.14, BULK_H+0.3, 0.14]} />
-            <meshStandardMaterial color="#6e6e6e" metalness={0.7} roughness={0.3} />
-          </mesh>
-        );
-      })}
-      {Array.from({length:BULK_LEVELS+1},(_,l)=>(
-        <mesh key={l} position={[(RACK_X0+RACK_X1)/2, l*BULK_LH, zPos]}>
-          <boxGeometry args={[RACK_SPAN+0.1, 0.10, 0.10]} />
-          <meshStandardMaterial color="#c04a00" metalness={0.5} roughness={0.4} />
-        </mesh>
-      ))}
-      {Array.from({length:BULK_LEVELS},(_,l)=>
-        Array.from({length:BAYS},(_,b)=>{
-          if((l*5+b*3+Math.abs(zPos))%7===0) return null;
-          return (
-            <mesh key={`${l}-${b}`}
-                  position={[RACK_X0+(b+0.5)*BAY_W, l*BULK_LH+BULK_LH/2, zPos+dz]}>
-              <boxGeometry args={[BAY_W-0.38, BULK_LH-0.28, 0.58]} />
-              <meshStandardMaterial color={BOX_COLORS[(l*3+b*5)%BOX_COLORS.length]} roughness={0.88} />
-            </mesh>
-          );
-        })
-      )}
-    </group>
-  );
-}
 
 // ─── Side Warehouse Walls ─────────────────────────────────────────────────────
 // ─── Forklift charging dock ───────────────────────────────────────────────────
@@ -1477,45 +1479,49 @@ function NorthControlBooth() {
 function NorthPalletJackRow() {
   const xs = [-12, -6, 0, 6];
   return (
-    <group position={[0, 0, 26]}>
+    <group position={[35, 0, 26]}>
       {xs.map((xo, i) => (
-        <group key={i} position={[xo, 0, 0]}>
-          {/* Body */}
-          <mesh position={[0, 0.85, 0]}>
-            <boxGeometry args={[1.1, 1.0, 1.0]} />
-            <meshStandardMaterial color="#1e40af" roughness={0.65} metalness={0.2} />
+        // Same geometry as RandomPalletJack at scale 1.4
+        <group key={i} position={[xo, 0, 0]} scale={[1.4, 1.4, 1.4]}>
+          {/* Tiller */}
+          <mesh position={[0, 0.95, 0.7]}>
+            <boxGeometry args={[0.85, 1.35, 0.1]} />
+            <meshStandardMaterial color="#e0e0e0" roughness={0.4} metalness={0.5} />
           </mesh>
-          {/* Control handle (angled) */}
-          <mesh position={[0, 1.75, -0.55]} rotation={[Math.PI / 5, 0, 0]}>
-            <boxGeometry args={[0.14, 1.6, 0.14]} />
-            <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.3} />
+          <mesh position={[0, 1.6, 0.72]}>
+            <boxGeometry args={[0.8, 0.1, 0.12]} />
+            <meshStandardMaterial color="#333" roughness={0.5} metalness={0.4} />
           </mesh>
-          {/* Forks extending into wall */}
-          {([-0.32, 0.32] as const).map((xf, fi) => (
-            <mesh key={fi} position={[xf, 0.14, 1.5]}>
-              <boxGeometry args={[0.15, 0.11, 3.0]} />
-              <meshStandardMaterial color="#374151" metalness={0.5} roughness={0.4} />
+          {/* Pump body */}
+          <mesh position={[0, 0.22, 0.55]}>
+            <boxGeometry args={[0.65, 0.42, 0.7]} />
+            <meshStandardMaterial color="#1e40af" metalness={0.5} roughness={0.45} />
+          </mesh>
+          <mesh position={[0, 0.38, 0.3]}>
+            <boxGeometry args={[0.45, 0.3, 0.3]} />
+            <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.4} />
+          </mesh>
+          {/* Forks */}
+          {([-0.36, 0.36] as const).map((ox, fi) => (
+            <mesh key={fi} position={[ox, 0.12, -0.35]}>
+              <boxGeometry args={[0.14, 0.09, 1.9]} />
+              <meshStandardMaterial color="#c0c0c0" metalness={0.85} roughness={0.2} />
             </mesh>
           ))}
-          {/* Drive wheels */}
-          {([-0.38, 0.38] as const).map((xw, wi) => (
-            <mesh key={wi} position={[xw, 0.2, -0.5]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.2, 0.2, 0.2, 10]} />
-              <meshStandardMaterial color="#1e293b" roughness={0.9} />
+          {/* Wheels */}
+          {([[-0.3, -0.1, 0.65], [0.3, -0.1, 0.65], [0, -0.1, -1.15]] as const).map(([wx, wy, wz], wi) => (
+            <mesh key={wi} position={[wx, wy, wz]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.14, 0.14, 0.15, 12]} />
+              <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
             </mesh>
           ))}
           {/* Charging LED */}
-          <mesh position={[0.57, 1.0, 0]}>
-            <boxGeometry args={[0.04, 0.22, 0.32]} />
-            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.0} />
+          <mesh position={[0, 1.95, 0.7]}>
+            <sphereGeometry args={[0.12, 10, 10]} />
+            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={2.0} />
           </mesh>
         </group>
       ))}
-      {/* Charging rail strip connecting all bays */}
-      <mesh position={[0, 0.18, -0.55]}>
-        <boxGeometry args={[22, 0.12, 0.3]} />
-        <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
-      </mesh>
     </group>
   );
 }
@@ -1707,15 +1713,13 @@ function SceneContents() {
       <fog attach="fog" args={['#b8ccd8',130,240]} />
       <Lighting />
       <Floor />
-      {/* Outer ASRS rack walls */}
+      {/* Outer ASRS rack walls — 3D rectangular shelves */}
       <RackWall zPos={RACK_OUTER_Z[0]} flip={true}  />
       <RackWall zPos={RACK_OUTER_Z[1]} flip={false} />
-      {/* Extended bulk storage racks — fills empty outer zone */}
-      <BulkStorageRack zPos={-17}  flip={false} levels={5} />
-      <BulkStorageRack zPos={-22}  flip={true}  levels={4} />
-      <BulkStorageRack zPos={+17}  flip={true}  levels={5} />
-      <BulkStorageRack zPos={+22}  flip={false} levels={4} />
-      {/* Inner rack walls are rendered live inside each AisleSystem */}
+      {/* Bulk storage — one row each side, shifted east of ASRS zone */}
+      <group position={[5, 0, 0]}><RackWall zPos={-24} flip={true}  /></group>
+      <group position={[5, 0, 0]}><RackWall zPos={+24} flip={false} /></group>
+      {/* Inner rack walls rendered live inside each AisleSystem */}
       <DockWall side="recv" />
       <DockWall side="ship" />
       <AisleSystem aisleZ={AISLE_Z[0]} recvColor="#dc6b19" shipColor="#1d4ed8" delay={0}   />
@@ -1734,15 +1738,13 @@ function SceneContents() {
       <ASRSServerRack x={RECV_IO_X - 7.5} z={+13} />
       <ASRSServerRack x={RECV_IO_X - 7.5} z={-13} />
 
-      {/* ── Outer south wall (z ≈ -25 to -26) — clear of z=±8 equipment ── */}
-      <SouthWallRack />
+      {/* ── Outer south wall (z ≈ -25 to -26) ── */}
       <SouthMaintenanceBench />
       <SouthBaler />
 
-      {/* ── Outer north wall (z ≈ +25 to +26) — clear of z=±8 equipment ── */}
+      {/* ── Outer north wall (z ≈ +25 to +26) ── */}
       <NorthControlBooth />
       <NorthPalletJackRow />
-      <NorthPartsRack />
 
       {/* Improvement zone beacons — visible when an AT scenario is active */}
       {beacons.map((b, i) => <ATBeacon key={i} x={b.x} z={b.z} r={b.r} />)}

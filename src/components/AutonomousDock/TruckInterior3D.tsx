@@ -3,6 +3,8 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 
+export type Speed = 1 | 2 | 3 | 5 | 10;
+
 export type LoadMode3D = 'baseline' | 'optimised';
 
 // ── Trailer interior geometry ──────────────────────────────────────────────────
@@ -151,7 +153,7 @@ function Box3D({
 }
 
 // ── Trailer: glass side walls + detailed rear face ─────────────────────────────
-function Trailer() {
+function Trailer({ doorOpen = false }: { doorOpen?: boolean }) {
   const frameCol = '#1a2840';
   const extColor = '#111827';
   const glassCol = '#88bcd8';
@@ -260,26 +262,30 @@ function Trailer() {
         <meshStandardMaterial color={extColor} metalness={0.45} roughness={0.65} />
       </mesh>
 
-      {/* Door panels — transparent glass so interior is visible */}
+      {/* Door panels — swing open when doorOpen=true */}
       {([-1, 1] as const).map((side, di) => {
-        const doorX = side * TW / 4;
-        const doorW = TW / 2 - 0.1;
+        const doorW      = TW / 2 - 0.1;
+        const hingeX     = side * TW / 2;
+        // positive openAng for right door swings it behind truck; same for left but mirrored
+        const openAng    = doorOpen ? side * Math.PI * 0.56 : 0;
+        // door extends from hinge toward center (left door: +x, right door: -x)
+        const meshOffset = -side * doorW / 2;
         return (
-          <group key={di}>
-            <mesh position={[doorX, TH / 2, 0.26]} renderOrder={2}>
+          <group key={di} position={[hingeX, TH / 2, 0.26]} rotation={[0, openAng, 0]}>
+            <mesh position={[meshOffset, 0, 0]} renderOrder={2}>
               <boxGeometry args={[doorW, TH, 0.18]} />
               <meshStandardMaterial
                 color="#88bcd8"
                 transparent={true}
-                opacity={0.16}
+                opacity={doorOpen ? 0.5 : 0.16}
                 roughness={0.03}
                 metalness={0.08}
                 depthWrite={false}
                 side={THREE.DoubleSide}
               />
             </mesh>
-            {/* Door handle */}
-            <mesh position={[side * (TW / 4 - side * 0.55), 1.45, 0.44]}>
+            {/* Door handle (local space) */}
+            <mesh position={[meshOffset - side * 0.55, -0.75, 0.18]}>
               <boxGeometry args={[0.06, 0.28, 0.1]} />
               <meshStandardMaterial color="#6b7280" metalness={0.9} roughness={0.15} />
             </mesh>
@@ -287,11 +293,13 @@ function Trailer() {
         );
       })}
 
-      {/* Center door split */}
-      <mesh position={[0, TH / 2, 0.36]}>
-        <boxGeometry args={[0.07, TH, 0.14]} />
-        <meshStandardMaterial color="#0f1a2a" roughness={0.82} metalness={0.6} />
-      </mesh>
+      {/* Center door split — only when closed */}
+      {!doorOpen && (
+        <mesh position={[0, TH / 2, 0.36]}>
+          <boxGeometry args={[0.07, TH, 0.14]} />
+          <meshStandardMaterial color="#0f1a2a" roughness={0.82} metalness={0.6} />
+        </mesh>
+      )}
 
       {/* Door hinges */}
       {([-1, 1] as const).map((side, i) =>
@@ -697,6 +705,159 @@ function Wheels() {
   );
 }
 
+// ── Worker-mode box list: L-first, M-second, S-third ─────────────────────────
+function buildWorkerBoxList() {
+  const out: { pos: [number, number, number]; type: BoxType }[] = [];
+  const lh = BOX_DIM['L'][1], mh = BOX_DIM['M'][1], sh = BOX_DIM['S'][1];
+  for (const type of ['L', 'M', 'S'] as BoxType[]) {
+    const y = type === 'L' ? lh / 2 : type === 'M' ? lh + mh / 2 : lh + mh + sh / 2;
+    for (let s = SLAB_Z.length - 1; s >= 0; s--)
+      for (let c = 0; c < COL_X.length; c++)
+        out.push({ pos: [COL_X[c], y, SLAB_Z[s]], type });
+  }
+  return out;
+}
+const WORKER_BOX_LIST = buildWorkerBoxList();
+const WORKER_TOTAL = WORKER_BOX_LIST.length;  // 96
+
+// ── Pallet outside truck door (visible behind worker) ────────────────────────
+function PalletOutside() {
+  return (
+    <group position={[0, 0, 3.2]}>
+      {/* Pallet deck */}
+      <mesh position={[0, 0.12, 0]}>
+        <boxGeometry args={[2.4, 0.22, 1.8]} />
+        <meshStandardMaterial color="#92400e" roughness={0.9} />
+      </mesh>
+      {/* Pallet legs */}
+      {([-0.8, 0, 0.8] as const).map((x, i) => (
+        <mesh key={i} position={[x, 0.0, 0]}>
+          <boxGeometry args={[0.4, 0.18, 1.8]} />
+          <meshStandardMaterial color="#78350f" roughness={0.9} />
+        </mesh>
+      ))}
+      {/* Box stack — always looks full (replenishes) */}
+      {([
+        ['L', '#9a6530', 0.64],
+        ['M', '#c8924a', 1.22],
+        ['S', '#d4a462', 1.68],
+      ] as [string, string, number][]).map(([, col, y]) => (
+        <mesh key={col} position={[0, y, 0]}>
+          <boxGeometry args={[2.0, 0.48, 1.6]} />
+          <meshStandardMaterial color={col} roughness={0.88} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// ── Worker 3D — same blocky style as AdaptiveTwin, rotation-only animation ────
+// Worker stands at the truck door and rotates: face pallet (grab) → face truck (place)
+type WPhase = 'face-pallet' | 'carry' | 'drop';
+
+function Worker3D({
+  speedMult,
+  currentType,
+  onPlace,
+  paused,
+}: {
+  speedMult: number;
+  currentType: BoxType;
+  onPlace: () => void;
+  paused: boolean;
+}) {
+  const g       = useRef<THREE.Group>(null);
+  const boxMesh = useRef<THREE.Group>(null);
+  const ph      = useRef<WPhase>('face-pallet');
+  const tmr     = useRef(0);
+  const rotY    = useRef(0);   // 0 = facing +z (pallet outside), π = facing -z (into truck)
+  const fired   = useRef(false);
+
+  const cbRef = useRef(onPlace);
+  cbRef.current = onPlace;
+
+  useFrame((_, dt) => {
+    if (!g.current || paused) return;
+    const ds = Math.min(dt, 0.05) * speedMult;
+    tmr.current += ds;
+
+    if (ph.current === 'face-pallet') {
+      // Smoothly face pallet (rotY → 0)
+      rotY.current += (0 - rotY.current) * Math.min(7 * ds, 0.95);
+      if (tmr.current > 0.5) { ph.current = 'carry'; tmr.current = 0; fired.current = false; }
+    } else if (ph.current === 'carry') {
+      // Turn to face truck (rotY → π), holding box
+      rotY.current += (Math.PI - rotY.current) * Math.min(7 * ds, 0.95);
+      if (tmr.current > 0.5) { ph.current = 'drop'; tmr.current = 0; }
+    } else {
+      // Facing truck — fire onPlace then return to face-pallet
+      if (!fired.current && tmr.current > 0.25) {
+        fired.current = true;
+        cbRef.current();
+      }
+      if (tmr.current > 0.55) { ph.current = 'face-pallet'; tmr.current = 0; }
+    }
+
+    const carrying = ph.current === 'carry' || ph.current === 'drop';
+    g.current.rotation.y = rotY.current;
+    if (boxMesh.current) boxMesh.current.visible = carrying;
+  });
+
+  const col = BOX_COLOR[currentType];
+  const [bw, bh, bd] = BOX_DIM[currentType];
+
+  // Worker fixed at the truck door entrance (z=+1.0), centered
+  return (
+    <group ref={g} position={[0, 0, 1.0]}>
+      {/* Torso — blue uniform */}
+      <mesh position={[0, 1.08, 0]}>
+        <boxGeometry args={[0.52, 0.95, 0.40]} />
+        <meshStandardMaterial color="#1e40af" roughness={0.9} />
+      </mesh>
+      {/* Safety vest */}
+      <mesh position={[0, 1.1, 0.20]}>
+        <boxGeometry args={[0.45, 0.72, 0.02]} />
+        <meshStandardMaterial color="#f59e0b" roughness={0.9} />
+      </mesh>
+      {/* Head */}
+      <mesh position={[0, 1.90, 0]}>
+        <sphereGeometry args={[0.27, 8, 8]} />
+        <meshStandardMaterial color="#fbbf24" roughness={0.85} />
+      </mesh>
+      {/* Hard hat */}
+      <mesh position={[0, 2.20, 0]}>
+        <cylinderGeometry args={[0.34, 0.30, 0.17, 8]} />
+        <meshStandardMaterial color="#f59e0b" roughness={0.75} />
+      </mesh>
+      {/* Legs */}
+      {([-0.14, 0.14] as const).map((xo, i) => (
+        <mesh key={i} position={[xo, 0.40, 0]}>
+          <boxGeometry args={[0.23, 0.58, 0.36]} />
+          <meshStandardMaterial color="#374151" roughness={0.9} />
+        </mesh>
+      ))}
+      {/* Feet */}
+      {([-0.14, 0.14] as const).map((xo, i) => (
+        <mesh key={i} position={[xo, 0.09, 0.11]}>
+          <boxGeometry args={[0.20, 0.14, 0.44]} />
+          <meshStandardMaterial color="#1e293b" roughness={0.9} />
+        </mesh>
+      ))}
+      {/* Carried box — in front of worker in local +z (faces pallet when rotY=0, faces truck when rotY=π) */}
+      <group ref={boxMesh} position={[0, 1.08, 0.60]} visible={false}>
+        <mesh>
+          <boxGeometry args={[bw * 0.75, bh * 0.75, bd * 0.75]} />
+          <meshStandardMaterial color={col.body} roughness={0.88} />
+        </mesh>
+        <mesh position={[0, bh * 0.375 + 0.003, 0]}>
+          <boxGeometry args={[bw * 0.73, 0.01, bd * 0.73]} />
+          <meshStandardMaterial color={col.top} roughness={0.80} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 // ── Full 3D scene ──────────────────────────────────────────────────────────────
 function Scene({ mode, animating }: { mode: LoadMode3D; animating: boolean }) {
   const grid  = mode === 'optimised' ? OPTIMISED_GRID : BASELINE_GRID;
@@ -747,25 +908,105 @@ function Scene({ mode, animating }: { mode: LoadMode3D; animating: boolean }) {
   );
 }
 
+// ── Worker-mode scene (separate from baseline/optimised static scene) ──────────
+function SceneWorker({
+  loadedCount,
+  speedMult,
+  onPlace,
+  paused,
+}: {
+  loadedCount: number;
+  speedMult: number;
+  onPlace: () => void;
+  paused: boolean;
+}) {
+  const currentType: BoxType = loadedCount < 32 ? 'L' : loadedCount < 64 ? 'M' : 'S';
+  const done = loadedCount >= WORKER_TOTAL;
+
+  return (
+    <>
+      <ambientLight intensity={2.8} />
+      <directionalLight position={[18, 22, 10]} intensity={1.6} castShadow
+        shadow-mapSize-width={1024} shadow-mapSize-height={1024}
+        shadow-camera-near={0.5} shadow-camera-far={60}
+        shadow-camera-left={-16} shadow-camera-right={16}
+        shadow-camera-top={10} shadow-camera-bottom={-5}
+      />
+      <directionalLight position={[-14, 12, -26]} intensity={0.8} color="#d0e4f8" />
+      <pointLight position={[0, -0.5, -8]} intensity={0.6} color="#b0c8e0" distance={20} decay={1.5} />
+
+      <Trailer doorOpen={true} />
+      <Cab />
+      <Wheels />
+      <PalletOutside />
+
+      {/* Boxes placed so far */}
+      {WORKER_BOX_LIST.slice(0, loadedCount).map((b, i) => (
+        <Box3D
+          key={i}
+          targetPos={b.pos}
+          size={BOX_DIM[b.type]}
+          color={BOX_COLOR[b.type]}
+          animate={false}
+          delay={0}
+        />
+      ))}
+
+      {/* Worker only shown while loading */}
+      {!done && (
+        <Worker3D
+          speedMult={speedMult}
+          currentType={currentType}
+          onPlace={onPlace}
+          paused={paused}
+        />
+      )}
+
+      <PerspectiveCamera makeDefault position={[16, 8, 8]} fov={52} near={0.5} far={80} />
+      <OrbitControls
+        target={[0, 2.5, -8]}
+        minDistance={10}
+        maxDistance={40}
+        minPolarAngle={0.1}
+        maxPolarAngle={Math.PI / 2.1}
+        enablePan={false}
+      />
+    </>
+  );
+}
+
 // ── Public component ───────────────────────────────────────────────────────────
 interface Props {
   mode: LoadMode3D;
   animating: boolean;
   height?: number;
+  // Worker mode props
+  workerMode?: boolean;
+  workerSpeed?: Speed;
+  workerPaused?: boolean;
+  loadedCount?: number;
+  onBoxLoaded?: () => void;
 }
 
-export function TruckInterior3D({ mode, animating, height = 500 }: Props) {
-  const fill         = computeFill3D(mode === 'optimised' ? OPTIMISED_GRID : BASELINE_GRID);
-  const fillColor    = mode === 'optimised' ? '#0891b2' : '#9ca3af';
+export function TruckInterior3D({
+  mode, animating, height = 500,
+  workerMode = false, workerSpeed = 1, workerPaused = false,
+  loadedCount = 0, onBoxLoaded,
+}: Props) {
+  const fill         = workerMode
+    ? Math.round((loadedCount / WORKER_TOTAL) * 100)
+    : computeFill3D(mode === 'optimised' ? OPTIMISED_GRID : BASELINE_GRID);
+  const fillColor    = (mode === 'optimised' || workerMode) ? '#0891b2' : '#9ca3af';
   const baselineFill = computeFill3D(BASELINE_GRID);
+  const done         = workerMode && loadedCount >= WORKER_TOTAL;
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       {/* Fill rate badge */}
       <div style={{
         position: 'absolute', top: 10, right: 12, zIndex: 10,
-        background: mode === 'optimised' ? '#ecfeff' : '#f9fafb',
-        border: `1px solid ${mode === 'optimised' ? '#a5f3fc' : '#e5e7eb'}`,
+        background: (mode === 'optimised' || workerMode) ? '#ecfeff' : '#f9fafb',
+        border: `1px solid ${(mode === 'optimised' || workerMode) ? '#a5f3fc' : '#e5e7eb'}`,
         borderRadius: 8, padding: '5px 12px',
         display: 'flex', alignItems: 'center', gap: 8,
       }}>
@@ -773,7 +1014,13 @@ export function TruckInterior3D({ mode, animating, height = 500 }: Props) {
         <span style={{ fontSize: 18, fontWeight: 800, color: fillColor, letterSpacing: '-0.02em' }}>
           {fill}%
         </span>
-        {mode === 'optimised' && (
+        {workerMode && loadedCount > 0 && (
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a',
+            background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '1px 6px' }}>
+            {loadedCount}/{WORKER_TOTAL} boxes
+          </span>
+        )}
+        {!workerMode && mode === 'optimised' && (
           <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a',
             background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '1px 6px' }}>
             +{fill - baselineFill}pp
@@ -784,11 +1031,13 @@ export function TruckInterior3D({ mode, animating, height = 500 }: Props) {
       {/* Mode badge */}
       <div style={{
         position: 'absolute', top: 10, left: 12, zIndex: 10,
-        background: mode === 'optimised' ? '#0891b2' : '#374151',
+        background: (mode === 'optimised' || workerMode) ? '#0891b2' : '#374151',
         borderRadius: 6, padding: '4px 10px',
       }}>
         <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-          {mode === 'optimised' ? '✓ AI Optimised Load' : '⚠ Random Loading'}
+          {workerMode
+            ? (done ? '✓ Loading complete' : `Worker loading — ${loadedCount < 32 ? 'LARGE' : loadedCount < 64 ? 'MEDIUM' : 'SMALL'} boxes`)
+            : mode === 'optimised' ? '✓ AI Optimised Load' : '⚠ Random Loading'}
         </span>
       </div>
 
@@ -819,9 +1068,20 @@ export function TruckInterior3D({ mode, animating, height = 500 }: Props) {
         onCreated={({ gl }) => { gl.setClearColor('#f0f4f8'); }}
       >
         <Suspense fallback={null}>
-          <Scene mode={mode} animating={animating} />
+          {workerMode ? (
+            <SceneWorker
+              loadedCount={loadedCount}
+              speedMult={workerSpeed}
+              onPlace={onBoxLoaded ?? (() => {})}
+              paused={workerPaused}
+            />
+          ) : (
+            <Scene mode={mode} animating={animating} />
+          )}
         </Suspense>
       </Canvas>
     </div>
   );
 }
+
+export { WORKER_TOTAL };

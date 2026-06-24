@@ -60,7 +60,20 @@ const MIN_TRANSIT_PAUSE =  1000;
 const MAX_TRANSIT_PAUSE =  5000;
 const MIN_DESK_PAUSE    = 60_000;  // 1 sim-minute
 const MAX_DESK_PAUSE    = 90_000;  // 1.5 sim-minutes
-const EQUIP_RADIUS = 3.5;
+const EQUIP_RADIUS = 5.5;  // forklift is ~4.5 units long at scale 1.5
+
+// Rack column x-centers and half-widths (from WarehouseFloor geometry)
+const MAIN_RACK_XS  = [-59, -49, -42, -28, -13, 2, 17, 37, 45, 56] as const;
+const SHIP_RACK_XS  = [-59, -49, -42, 56, 60] as const;
+const RACK_HALF_W   = 2.2;  // conservative half-width — keeps workers in aisle centre
+
+function isInRack(x: number, z: number): boolean {
+  if (z >= -22 && z <= 8)
+    return MAIN_RACK_XS.some(rx => Math.abs(x - rx) < RACK_HALF_W);
+  if (z >= 13 && z <= 28)
+    return SHIP_RACK_XS.some(rx => Math.abs(x - rx) < RACK_HALF_W);
+  return false;
+}
 
 /** Return collision-free waypoints from (fx,fz) to (tx,tz).
  *  E-W movement through rack zones routes via the nearest open corridor. */
@@ -102,14 +115,15 @@ export function RandomWalker({
   const clipboardRef = useRef<THREE.Mesh>(null);
   const statusDotRef = useRef<THREE.Mesh>(null);
 
-  const posX    = useRef(SPAWN_X);
-  const posZ    = useRef(SPAWN_Z);
-  const segPath = useRef<[number, number][]>([]);
-  const pauseMs = useRef(initialDelayMs);
-  const angle   = useRef(0);
-  const walkCyc = useRef(0);
-  const rngState = useRef(seed * 48271 + 1);
-  const entered  = useRef(false);
+  const posX      = useRef(SPAWN_X);
+  const posZ      = useRef(SPAWN_Z);
+  const segPath   = useRef<[number, number][]>([]);
+  const pauseMs   = useRef(initialDelayMs);
+  const angle     = useRef(0);
+  const walkCyc   = useRef(0);
+  const rngState  = useRef(seed * 48271 + 1);
+  const entered   = useRef(false);
+  const lastSimMs = useRef(-1);
 
   const rand = () => {
     rngState.current = (rngState.current * 1664525 + 1013904223) >>> 0;
@@ -124,7 +138,28 @@ export function RandomWalker({
     // Hide workers that haven't entered yet — they sit at x=73 (inside the east wall).
     groupRef.current.visible = entered.current;
 
-    const { playbackSpeed, isPlaying } = useSimulationStore.getState();
+    const { playbackSpeed, isPlaying, currentTime } = useSimulationStore.getState();
+
+    // Detect timeline scrub: currentTime jumped non-linearly (user dragged the slider).
+    // Forklifts teleport to the correct deterministic position; snap workers to the
+    // nearest safe waypoint so they don't end up inside equipment or rack geometry.
+    if (lastSimMs.current >= 0 && entered.current) {
+      const jump = currentTime - lastSimMs.current;
+      if (jump > 2000 || jump < 0) {
+        let bestWp = WAYPOINTS[0];
+        let bestDist = Infinity;
+        for (const wp of WAYPOINTS) {
+          const d = (wp[0] - posX.current) ** 2 + (wp[1] - posZ.current) ** 2;
+          if (d < bestDist) { bestDist = d; bestWp = wp; }
+        }
+        posX.current = bestWp[0];
+        posZ.current = bestWp[1];
+        segPath.current = [];
+        pauseMs.current = 500;
+      }
+    }
+    lastSimMs.current = currentTime;
+
     if (!isPlaying) return;
 
     const dt = delta * 1000 * Math.max(playbackSpeed, 0.5); // sim-ms per frame
@@ -170,8 +205,15 @@ export function RandomWalker({
         }
       } else {
         const step = Math.min(dist, SPEED * dt);
-        posX.current += (dx / dist) * step;
-        posZ.current += (dz / dist) * step;
+        const nx = posX.current + (dx / dist) * step;
+        const nz = posZ.current + (dz / dist) * step;
+        // Abort path segment if next step would enter rack geometry
+        if (isInRack(nx, nz)) {
+          segPath.current = [];
+        } else {
+          posX.current = nx;
+          posZ.current = nz;
+        }
         const tgt = Math.atan2(dx, dz);
         const diff = ((tgt - angle.current + Math.PI) % (2 * Math.PI)) - Math.PI;
         angle.current += diff * Math.min(1, delta * 6);

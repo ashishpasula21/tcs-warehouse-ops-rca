@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 import { AdaptiveTwinScene } from './components/AdaptiveTwin/AdaptiveTwinScene';
 import { DockLayoutSVG } from './components/AutonomousDock/DockLayoutSVG';
-import { TruckInterior3D } from './components/AutonomousDock/TruckInterior3D';
+import { DockOptimizerSim } from './components/AutonomousDock/DockOptimizerSim';
+import { TruckInterior3D, WORKER_TOTAL } from './components/AutonomousDock/TruckInterior3D';
 import {
   AT_ANOMALIES, AT_SCENARIOS, AT_BASELINE, AT_CONTROL_EVENTS,
   AT_SCENARIO_LABELS, AT_CATEGORY_COLORS,
@@ -2287,6 +2288,9 @@ function ADSimulationView({
   const [activeTab,    setActiveTab]    = useState<'dock' | 'load'>('dock');
   const [dockRunning,  setDockRunning]  = useState(false);
   const [loadAnimating,setLoadAnimating]= useState(false);
+  const [loadSpeed,    setLoadSpeed]    = useState<1|2|3|5|10>(1);
+  const [loadedCount,  setLoadedCount]  = useState(0);
+  const [loadPaused,   setLoadPaused]   = useState(false);
   const [dismissedEv,  setDismissedEv] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
 
@@ -2298,9 +2302,16 @@ function ADSimulationView({
   const handleOptimisePacking = () => {
     setLoadAnimating(true);
     setLoadMode('optimised');
+    setLoadedCount(0);
     setTimeout(() => setLoadAnimating(false), 3000);
   };
-  const handleResetPacking = () => { setLoadMode('baseline'); setLoadAnimating(false); };
+  const handleResetPacking = () => {
+    setLoadMode('baseline');
+    setLoadAnimating(false);
+    setLoadedCount(0);
+    setLoadSpeed(1);
+    setLoadPaused(false);
+  };
 
   const dockKPIs = [
     { label: 'Truck Fill Rate',    before: DOCK_BASELINE.fillRate,        after: DOCK_OPTIMISED.fillRate,        unit: '%',        good: true  },
@@ -2339,32 +2350,39 @@ function ADSimulationView({
 
         <div style={{ flex: 1 }} />
 
-        {/* Dock controls */}
-        {activeTab === 'dock' && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => setShowTimeline(p => !p)}
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: showTimeline ? '#e0f2fe' : PAGE, color: showTimeline ? '#0369a1' : T2, border: `1px solid ${showTimeline ? '#bae6fd' : BORDER}` }}>
-              <Clock size={11} /> Timeline
-            </button>
-            {dockPhase === 'baseline' ? (
-              <button onClick={handleRunDock} disabled={dockRunning}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', opacity: dockRunning ? 0.7 : 1 }}>
-                <Play size={11} /> {dockRunning ? 'Optimising…' : 'Run AI Optimisation'}
-              </button>
-            ) : (
-              <button onClick={handleResetDock}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: PAGE, color: T2, border: `1px solid ${BORDER}` }}>
-                <RotateCcw size={11} /> Reset
-              </button>
-            )}
-          </div>
-        )}
+        {/* Load planner controls */}
         {(activeTab === 'load') && (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {loadMode === 'optimised' && (
+              <>
+                <span style={{ fontSize: 10, fontWeight: 700, color: T2, letterSpacing: '0.05em' }}>SPEED</span>
+                {([1, 2, 3, 5, 10] as const).map(s => (
+                  <button key={s} onClick={() => setLoadSpeed(s)} style={{
+                    padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                    cursor: 'pointer', border: 'none',
+                    background: loadSpeed === s ? CYAN : PAGE,
+                    color:      loadSpeed === s ? '#fff' : T2,
+                  }}>
+                    {s}×
+                  </button>
+                ))}
+                <div style={{ width: 1, height: 16, background: BORDER, margin: '0 2px' }} />
+                <button onClick={() => setLoadPaused(p => !p)} style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '4px 11px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  cursor: 'pointer', border: `1px solid ${BORDER}`,
+                  background: loadPaused ? '#fffbeb' : PAGE,
+                  color: loadPaused ? '#d97706' : T2,
+                }}>
+                  {loadPaused ? '▶ Resume' : '⏸ Pause'}
+                </button>
+                <div style={{ width: 1, height: 16, background: BORDER, margin: '0 2px' }} />
+              </>
+            )}
             {loadMode === 'baseline' ? (
               <button onClick={handleOptimisePacking} disabled={loadAnimating}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', opacity: loadAnimating ? 0.7 : 1 }}>
-                <Zap size={11} /> {loadAnimating ? 'Packing…' : 'Apply AI Packing'}
+                <Zap size={11} /> Apply AI Packing
               </button>
             ) : (
               <button onClick={handleResetPacking}
@@ -2397,238 +2415,106 @@ function ADSimulationView({
         </div>
       </div>
 
-      {/* ── DOCK OPTIMIZER: 2D dock layout ── */}
+      {/* ── DOCK OPTIMIZER: 2.5D simulation ── */}
       {activeTab === 'dock' && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <DockOptimizerSim dockPhase={dockPhase} setDockPhase={setDockPhase} />
+      )}
 
-          {/* Main content: SVG canvas + event panel */}
-          <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
 
-            {/* 2D dock layout SVG */}
-            <div style={{ flex: 1, overflowY: 'auto', background: '#f8fafc', padding: '20px 24px' }}>
-              <DockLayoutSVG phase={dockPhase} />
+      {/* ── LOAD PLANNER ── */}
+      {activeTab === 'load' && (
+        <div style={{ flex: 1, overflowY: 'auto', background: PAGE }}>
+          <div style={{ padding: '20px 24px 32px' }}>
+            {/* Header */}
+            <div style={{ marginBottom: 16 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: T1, margin: '0 0 3px', letterSpacing: '-0.01em' }}>Truck Load Planner</h2>
+              <p style={{ fontSize: 12, color: T2, margin: 0 }}>
+                {loadMode === 'baseline'
+                  ? <><strong style={{ color: RED }}>Baseline:</strong> random load order — gaps, damage risk. Click <strong>Apply AI Packing</strong> to watch a worker load optimally in real time.</>
+                  : <><strong style={{ color: CYAN }}>AI Packing active</strong> — worker loads Large → Medium → Small. Adjust speed with 1×–10× controls in the toolbar.</>}
+              </p>
             </div>
 
-            {/* Dock event side panel */}
-            {activeDocEv && dismissedEv !== activeDocEv.time && (
-              <div style={{ width: 320, flexShrink: 0, background: CARD, borderLeft: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-                <div style={{ height: 4, background: CYAN, flexShrink: 0 }} />
-                <div style={{ padding: '16px 18px' }}>
-
-                  {/* Header */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 9, background: '#ecfeff', border: '1px solid #a5f3fc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Brain size={14} color={CYAN} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: CYAN, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3 }}>
-                        AI Dock Decision · {activeDocEv.time}
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: T1, lineHeight: 1.3 }}>{activeDocEv.dockId ?? 'System'}</div>
-                    </div>
-                    <button onClick={() => setDismissedEv(activeDocEv.time)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: T3, padding: 2, fontSize: 14, lineHeight: 1 }}>✕</button>
-                  </div>
-
-                  {/* Event summary */}
-                  <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 8, padding: '10px 12px', marginBottom: 14 }}>
-                    <p style={{ fontSize: 12, color: T1, lineHeight: 1.6, margin: 0, fontWeight: 500 }}>{activeDocEv.msg}</p>
-                  </div>
-
-                  {/* What the AI will do */}
-                  {activeDocEv.action && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                        <div style={{ width: 18, height: 18, borderRadius: 5, background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Zap size={10} color="#2563eb" />
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.07em' }}>What AI will do</span>
-                      </div>
-                      <div style={{ background: '#f8fafc', border: `1px solid ${BORDER}`, borderRadius: 8, padding: '10px 12px' }}>
-                        <p style={{ fontSize: 12, color: T1, lineHeight: 1.65, margin: 0 }}>{activeDocEv.action}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Scenario impact */}
-                  {activeDocEv.impact && (
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                        <div style={{ width: 18, height: 18, borderRadius: 5, background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <TrendingUp size={10} color="#16a34a" />
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Scenario Impact</span>
-                      </div>
-                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 12px' }}>
-                        <p style={{ fontSize: 12, color: '#15803d', lineHeight: 1.65, margin: 0, fontWeight: 500 }}>{activeDocEv.impact}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Divider */}
-                  <div style={{ height: 1, background: BORDER, marginBottom: 12 }} />
-
-                  {/* Recent events feed */}
-                  <div style={{ fontSize: 10, fontWeight: 700, color: T3, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Recent Dock Events</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {DOCK_EVENTS.slice(1, 5).map(ev => {
-                      const dot = ev.type === 'decision' ? CYAN : ev.type === 'alert' ? RED : ev.type === 'success' ? GREEN : '#3b82f6';
-                      return (
-                        <div key={ev.time} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 9px', background: PAGE, borderRadius: 7, border: `1px solid ${BORDER}` }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: dot, marginTop: 4, flexShrink: 0 }} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 9, color: T3, fontWeight: 600, marginBottom: 1 }}>{ev.time}</div>
-                            <div style={{ fontSize: 11, color: T1, lineHeight: 1.4 }}>{ev.msg}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {dockPhase === 'baseline' && (
-                    <button onClick={handleRunDock} disabled={dockRunning}
-                      style={{ marginTop: 14, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 0', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: CYAN, color: '#fff', border: 'none', opacity: dockRunning ? 0.7 : 1 }}>
-                      <Play size={11} /> {dockRunning ? 'Optimising…' : 'Run AI Optimisation'}
-                    </button>
-                  )}
-                </div>
+            {/* KPI strip */}
+            <div style={{ background: '#0f172a', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Zap size={11} color="#fbbf24" />
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Load Optimisation KPI</span>
+                {loadMode === 'baseline'
+                  ? <span style={{ fontSize: 9, color: '#64748b' }}>· apply AI packing to see improvement</span>
+                  : <span style={{ fontSize: 9, color: '#22c55e', background: '#052e16', border: '1px solid #14532d', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>AI active</span>}
               </div>
-            )}
-          </div>
-
-          {/* Dock Timeline (collapsible) */}
-          {showTimeline && (
-            <div style={{ background: PAGE, borderTop: `1px solid ${BORDER}`, padding: '14px 20px', flexShrink: 0, maxHeight: 340, overflowY: 'auto' }}>
-              <DockTimeline phase={dockPhase} />
-            </div>
-          )}
-
-          {/* Dock KPI strip */}
-          <div style={{ flexShrink: 0, background: '#0f172a', borderTop: '1px solid #1e293b', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, marginRight: 8 }}>
-              <Zap size={12} color="#fbbf24" />
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24', whiteSpace: 'nowrap' }}>Dock KPIs</span>
-              <span style={{ fontSize: 10, color: '#64748b' }}>{dockPhase === 'optimised' ? '· AI optimised' : '· baseline'}</span>
-            </div>
-            <div style={{ width: 1, height: 32, background: '#1e293b', flexShrink: 0 }} />
-            <div style={{ display: 'flex', gap: 6, flex: 1, overflow: 'hidden' }}>
-              {dockKPIs.map(k => {
-                const delta  = k.after - k.before;
-                const isGood = k.good ? delta >= 0 : delta <= 0;
-                const show   = dockPhase === 'optimised';
+              {[
+                { label: 'Fill Rate',     before: '72%',    after: '94%',    delta: '+22%'   },
+                { label: 'Load Time',     before: '28 min', after: '19 min', delta: '−9 min' },
+                { label: 'Damage Risk',   before: 'HIGH',   after: 'LOW',    delta: '↓ 85%'  },
+                { label: 'Space Used',    before: '72%',    after: '94%',    delta: '+22%'   },
+                { label: 'Wt Compliance', before: '0%',     after: '100%',   delta: '+100%'  },
+              ].map(k => {
+                const show = loadMode === 'optimised';
                 return (
-                  <div key={k.label} style={{ flex: 1, minWidth: 0, background: '#1e293b', borderRadius: 8, padding: '6px 10px', border: `1px solid ${show ? '#0c4a6e' : '#334155'}`, transition: 'border-color 0.3s' }}>
-                    <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k.label}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ fontSize: 12, color: show ? '#475569' : '#94a3b8', textDecoration: show ? 'line-through' : 'none', transition: 'all 0.3s' }}>{k.before}{k.unit}</span>
+                  <div key={k.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 8, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>{k.label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 11, color: show ? '#475569' : '#94a3b8', textDecoration: show ? 'line-through' : 'none' }}>{k.before}</span>
                       {show && <>
-                        <span style={{ fontSize: 9, color: '#334155' }}>→</span>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: '#f1f5f9' }}>{k.after}{k.unit}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: isGood ? '#22c55e' : '#f87171', background: isGood ? '#14532d' : '#7f1d1d', borderRadius: 4, padding: '1px 5px' }}>
-                          {delta > 0 ? '+' : ''}{delta}{k.unit}
-                        </span>
+                        <span style={{ fontSize: 8, color: '#334155' }}>→</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: '#f1f5f9' }}>{k.after}</span>
+                        <span style={{ fontSize: 8, fontWeight: 700, color: '#22c55e', background: '#14532d', borderRadius: 3, padding: '1px 5px' }}>{k.delta}</span>
                       </>}
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* ── LOAD PLANNER: truck interior view ── */}
-      {activeTab === 'load' && (
-        <div style={{ flex: 1, overflowY: 'auto', background: PAGE }}>
-          <div style={{ padding: '24px 28px 36px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
-              <div>
-                <h2 style={{ fontSize: 17, fontWeight: 800, color: T1, margin: '0 0 4px', letterSpacing: '-0.01em' }}>Truck Load Planner</h2>
-                <p style={{ fontSize: 12, color: T2, margin: 0 }}>
-                  Looking into the back of the trailer.
-                  <strong style={{ color: RED }}> Before:</strong> random loading — large gaps visible.
-                  <strong style={{ color: CYAN }}> After AI:</strong> large boxes floor-first, medium, then small fills every gap. Drag to rotate · scroll to zoom.
-                </p>
-              </div>
+            {/* 3D truck view */}
+            <div style={{ background: '#0f172a', border: `1px solid ${loadMode === 'optimised' ? '#164e63' : '#1e293b'}`, borderRadius: 14, overflow: 'hidden', marginBottom: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}>
+              <TruckInterior3D
+                mode={loadMode === 'baseline' ? 'baseline' : 'optimised'}
+                animating={false}
+                height={440}
+                workerMode={loadMode === 'optimised'}
+                workerSpeed={loadSpeed}
+                workerPaused={loadPaused}
+                loadedCount={loadedCount}
+                onBoxLoaded={() => setLoadedCount(c => Math.min(c + 1, WORKER_TOTAL))}
+              />
             </div>
 
-            {/* Load Planner KPI strip */}
-            <div style={{ background: '#0f172a', borderRadius: 12, padding: '14px 18px', marginBottom: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-                <Zap size={12} color="#fbbf24" />
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>KPI Impact — Load Optimisation</span>
-                {loadMode === 'optimised'
-                  ? <span style={{ fontSize: 9, color: '#22c55e', background: '#052e16', border: '1px solid #14532d', borderRadius: 4, padding: '1px 7px', fontWeight: 700 }}>AI packing applied</span>
-                  : <span style={{ fontSize: 9, color: '#64748b' }}>· apply AI packing to see improvement</span>}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+            {/* Load sequence reference */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '14px 16px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: RED, marginBottom: 8 }}>Baseline — Random Sequence</div>
                 {[
-                  { label: 'Trailer Fill Rate', before: '72%',    after: '94%',    delta: '+22%'   },
-                  { label: 'Load Time',          before: '28 min', after: '19 min', delta: '−9 min' },
-                  { label: 'Damage Risk',        before: 'HIGH',   after: 'LOW',    delta: '↓ 85%'  },
-                  { label: 'Space Utilised',     before: '72%',    after: '94%',    delta: '+22%'   },
-                  { label: 'Weight Compliance',  before: '0%',     after: '100%',   delta: '+100%'  },
-                ].map(k => {
-                  const show = loadMode === 'optimised';
-                  return (
-                    <div key={k.label} style={{ background: '#1e293b', borderRadius: 8, padding: '10px 12px', border: `1px solid ${show ? '#0c4a6e' : '#334155'}`, transition: 'border-color 0.3s' }}>
-                      <div style={{ fontSize: 9, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{k.label}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontSize: 12, color: show ? '#475569' : '#94a3b8', textDecoration: show ? 'line-through' : 'none', transition: 'all 0.3s' }}>{k.before}</span>
-                        {show && <>
-                          <span style={{ fontSize: 9, color: '#334155' }}>→</span>
-                          <span style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{k.after}</span>
-                        </>}
-                      </div>
-                      {show && <span style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', background: '#14532d', borderRadius: 4, padding: '1px 6px', marginTop: 4, display: 'inline-block' }}>{k.delta}</span>}
+                  { step: 1, label: 'Small first', note: 'crushed by heavier boxes later' },
+                  { step: 2, label: 'Large mixed in', note: 'heavy on small = damage risk' },
+                  { step: 3, label: 'Medium last', note: '28% wasted trailer space' },
+                ].map(({ step, label, note }) => (
+                  <div key={step} style={{ display: 'flex', gap: 8, padding: '6px 8px', background: '#fff', borderRadius: 6, border: '1px solid #fecaca', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: RED, minWidth: 14 }}>{step}.</span>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: T1 }}>{label}</div>
+                      <div style={{ fontSize: 10, color: RED }}>{note}</div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
-            </div>
-
-            {/* 3D truck interior */}
-            <div style={{ background: '#0f172a', border: `1px solid ${loadMode === 'optimised' ? '#164e63' : '#1e293b'}`, borderRadius: 14, overflow: 'hidden', marginBottom: 18, boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}>
-              <TruckInterior3D mode={loadMode} animating={loadAnimating} height={400} />
-            </div>
-
-            {/* Load sequence cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '16px 18px' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: RED, marginBottom: 10 }}>Before — Baseline Load Sequence</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {[
-                    { step: 1, label: 'Small boxes (SKU-C7)',  note: 'loaded first — crushed by heavier items later' },
-                    { step: 2, label: 'Large boxes (SKU-A1)',  note: 'heavy items stacked on top of small — damage risk' },
-                    { step: 3, label: 'Medium boxes (SKU-B3)', note: 'gaps left in trailer — 28% wasted space' },
-                  ].map(({ step, label, note }) => (
-                    <div key={step} style={{ display: 'flex', gap: 10, padding: '8px 10px', background: '#fff', borderRadius: 7, border: '1px solid #fecaca' }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: RED, minWidth: 16 }}>{step}.</span>
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: T1 }}>{label}</div>
-                        <div style={{ fontSize: 10, color: RED }}>{note}</div>
-                      </div>
+              <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 10, padding: '14px 16px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: CYAN, marginBottom: 8 }}>AI Optimised — L → M → S</div>
+                {[
+                  { step: 1, label: 'Large first (floor)', note: 'maximum stability base layer' },
+                  { step: 2, label: 'Medium middle',       note: 'fills mid-height space evenly' },
+                  { step: 3, label: 'Small on top',        note: '94% trailer utilisation' },
+                ].map(({ step, label, note }) => (
+                  <div key={step} style={{ display: 'flex', gap: 8, padding: '6px 8px', background: '#fff', borderRadius: 6, border: '1px solid #a5f3fc', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: CYAN, minWidth: 14 }}>{step}.</span>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: T1 }}>{label}</div>
+                      <div style={{ fontSize: 10, color: CYAN }}>{note}</div>
                     </div>
-                  ))}
-                </div>
-              </div>
-              <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 12, padding: '16px 18px' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: CYAN, marginBottom: 10 }}>After — AI Optimised Load Sequence</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {[
-                    { step: 1, label: 'Large boxes (SKU-A1)',  note: 'floor-first — maximum stability base layer' },
-                    { step: 2, label: 'Medium boxes (SKU-B3)', note: 'stacked on large — fills mid-height space evenly' },
-                    { step: 3, label: 'Small boxes (SKU-C7)',  note: 'top layer + gap fill — 100% trailer utilisation' },
-                  ].map(({ step, label, note }) => (
-                    <div key={step} style={{ display: 'flex', gap: 10, padding: '8px 10px', background: '#fff', borderRadius: 7, border: '1px solid #a5f3fc' }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: CYAN, minWidth: 16 }}>{step}.</span>
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: T1 }}>{label}</div>
-                        <div style={{ fontSize: 10, color: CYAN }}>{note}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
