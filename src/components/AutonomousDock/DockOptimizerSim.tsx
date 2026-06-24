@@ -403,7 +403,7 @@ export function DockOptimizerSim({
           if (dec.dockId !== 'QUEUE') {
             setDockedTrucks(dt => ({ ...dt, [dec.dockId]: { id: truck.id, priority: truck.priority } }));
             setTicker(t => [{
-              id: `${truck.id}-${cur}`, simMin: cur, type: 'assign',
+              id: `${truck.id}-${cur}`, simMin: cur, type: 'assign' as const,
               msg: `${truck.id} → ${dec.dockId} · ${truck.priority} · ${truck.pallets} pal`,
               dockId: dec.dockId,
             }, ...t].slice(0, 40));
@@ -429,7 +429,7 @@ export function DockOptimizerSim({
         const tid = d.truckId;
         setDockedTrucks(dt => { const n = { ...dt }; delete n[d.id]; return n; });
         setTicker(t => [{
-          id: `${d.id}-done-${cur}`, simMin: cur, type: 'complete',
+          id: `${d.id}-done-${cur}`, simMin: cur, type: 'complete' as const,
           msg: `${d.id} door clear · ${tid} departed fully loaded`, dockId: d.id,
         }, ...t].slice(0, 40));
         return { ...d, status:'idle', truckId:null, loadPct:0, loadStartMin:-1, lastClearMin:cur, productFill:0 };

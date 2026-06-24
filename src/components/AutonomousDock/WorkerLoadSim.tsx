@@ -386,7 +386,7 @@ export function WorkerLoadSim() {
   const boxIdxRef   = useRef(0);
   const speedRef    = useRef<Speed>(1);
   const doneRef     = useRef(false);
-  const timerRef    = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef    = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const scheduleNext = useCallback(() => {
     if (doneRef.current) return;
