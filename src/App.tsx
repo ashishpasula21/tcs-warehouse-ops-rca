@@ -20,6 +20,7 @@ import {
   Cpu, Radio, FlaskConical, Settings,
 } from 'lucide-react';
 import { AdaptiveTwinScene } from './components/AdaptiveTwin/AdaptiveTwinScene';
+import { QuadrupedMonitorDashboard } from './components/QuadrupedMonitor/QuadrupedMonitorDashboard';
 import { DockLayoutSVG } from './components/AutonomousDock/DockLayoutSVG';
 import { DockOptimizerSim } from './components/AutonomousDock/DockOptimizerSim';
 import { TruckInterior3D, WORKER_TOTAL } from './components/AutonomousDock/TruckInterior3D';
@@ -47,7 +48,7 @@ const CARDSH = '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)';
 
 // ── Navigation types ──────────────────────────────────────────────────────────
 type AppView    = 'home' | 'network' | 'warehouse';
-type MainTab    = 'warehouse-ops' | 'adaptive-twin' | 'autonomous-dock';
+type MainTab    = 'warehouse-ops' | 'adaptive-twin' | 'autonomous-dock' | 'quadruped';
 type SubView    = 'overview' | 'simulation' | 'analytics' | 'ai' | 'kpi-impact';
 type ATSubView  = 'live' | 'anomalies' | 'ai-scenarios' | 'control';
 type ADSubView  = 'live-ops' | 'ai-decisions' | 'simulation' | 'kpi-impact' | 'load-kpi';
@@ -57,6 +58,7 @@ const MAIN_TABS: { id: MainTab; label: string; Icon: typeof Activity; color: str
   { id: 'warehouse-ops',    label: 'Warehouse Ops',    Icon: Layers,    color: '#1d4ed8' },
   { id: 'adaptive-twin',    label: 'Adaptive Twin',    Icon: GitBranch, color: '#7c3aed' },
   { id: 'autonomous-dock',  label: 'Autonomous Dock',  Icon: Bot,       color: '#0891b2' },
+  { id: 'quadruped',        label: 'Quadruped AI',     Icon: Cpu,       color: '#0d9488' },
 ];
 
 const SUB_VIEWS: { id: SubView; label: string; Icon: typeof Activity }[] = [
@@ -320,6 +322,15 @@ function ComingSoon({ tab }: { tab: MainTab }) {
         'Computer vision trailer ID and damage detection at gate',
         'Automated dock door assignment by SKU affinity and priority',
         'Real-time carrier ETA integration with buffer alerting',
+      ],
+    },
+    'quadruped': {
+      tagline: 'Unitree Go2 quadruped robot for autonomous substation hazard pre-assessment and health monitoring.',
+      bullets: [
+        'Multi-sensor fusion: thermal, acoustic, EMI, vibration, LiDAR',
+        'AI anomaly detection with transformer health scoring (1–10)',
+        'Manual keyboard takeover with first/third person camera',
+        'SCADA/CMMS integration via GridOS for real-time reporting',
       ],
     },
   };
@@ -5244,6 +5255,9 @@ export default function App() {
       )}
       {mainTab === 'autonomous-dock' && (
         <AutonomousDockView adSubView={effectiveAdSubView} setAdSubView={setAdSubView} dockPhase={dockPhase} setDockPhase={setDockPhase} loadMode={loadMode} setLoadMode={setLoadMode} />
+      )}
+      {mainTab === 'quadruped' && (
+        <QuadrupedMonitorDashboard />
       )}
     </div>
   );
