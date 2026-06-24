@@ -300,7 +300,7 @@ function TruckTopDown({
         borderRadius: '2px 2px 0 0',
         position: 'relative',
         overflow: 'hidden',
-        height: 64,
+        height: 160,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         gap: 3,
       }}>
