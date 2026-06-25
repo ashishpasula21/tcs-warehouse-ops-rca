@@ -20,7 +20,6 @@ import {
   Cpu, Radio, FlaskConical, Settings,
 } from 'lucide-react';
 import { AdaptiveTwinScene } from './components/AdaptiveTwin/AdaptiveTwinScene';
-import { QuadrupedMonitorDashboard } from './components/QuadrupedMonitor/QuadrupedMonitorDashboard';
 import { DockLayoutSVG } from './components/AutonomousDock/DockLayoutSVG';
 import { DockOptimizerSim } from './components/AutonomousDock/DockOptimizerSim';
 import { TruckInterior3D, WORKER_TOTAL } from './components/AutonomousDock/TruckInterior3D';
@@ -48,7 +47,7 @@ const CARDSH = '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)';
 
 // ── Navigation types ──────────────────────────────────────────────────────────
 type AppView    = 'home' | 'network' | 'warehouse';
-type MainTab    = 'warehouse-ops' | 'adaptive-twin' | 'autonomous-dock' | 'quadruped';
+type MainTab    = 'warehouse-ops' | 'adaptive-twin' | 'autonomous-dock';
 type SubView    = 'overview' | 'simulation' | 'analytics' | 'ai' | 'kpi-impact';
 type ATSubView  = 'live' | 'anomalies' | 'ai-scenarios' | 'control';
 type ADSubView  = 'live-ops' | 'ai-decisions' | 'simulation' | 'kpi-impact' | 'load-kpi';
@@ -58,7 +57,6 @@ const MAIN_TABS: { id: MainTab; label: string; Icon: typeof Activity; color: str
   { id: 'warehouse-ops',    label: 'Warehouse Ops',    Icon: Layers,    color: '#1d4ed8' },
   { id: 'adaptive-twin',    label: 'Adaptive Twin',    Icon: GitBranch, color: '#7c3aed' },
   { id: 'autonomous-dock',  label: 'Autonomous Dock',  Icon: Bot,       color: '#0891b2' },
-  { id: 'quadruped',        label: 'Quadruped AI',     Icon: Cpu,       color: '#0d9488' },
 ];
 
 const SUB_VIEWS: { id: SubView; label: string; Icon: typeof Activity }[] = [
@@ -322,15 +320,6 @@ function ComingSoon({ tab }: { tab: MainTab }) {
         'Computer vision trailer ID and damage detection at gate',
         'Automated dock door assignment by SKU affinity and priority',
         'Real-time carrier ETA integration with buffer alerting',
-      ],
-    },
-    'quadruped': {
-      tagline: 'Unitree Go2 quadruped robot for autonomous substation hazard pre-assessment and health monitoring.',
-      bullets: [
-        'Multi-sensor fusion: thermal, acoustic, EMI, vibration, LiDAR',
-        'AI anomaly detection with transformer health scoring (1–10)',
-        'Manual keyboard takeover with first/third person camera',
-        'SCADA/CMMS integration via GridOS for real-time reporting',
       ],
     },
   };
@@ -2299,7 +2288,7 @@ function ADSimulationView({
   const [activeTab,    setActiveTab]    = useState<'dock' | 'load'>('dock');
   const [dockRunning,  setDockRunning]  = useState(false);
   const [loadAnimating,setLoadAnimating]= useState(false);
-  const [loadSpeed,    setLoadSpeed]    = useState<1|2|3|5|10>(1);
+  const [loadSpeed,    setLoadSpeed]    = useState<1|2|3|5|10|50>(1);
   const [loadedCount,  setLoadedCount]  = useState(0);
   const [loadPaused,   setLoadPaused]   = useState(false);
   const [dismissedEv,  setDismissedEv] = useState<string | null>(null);
@@ -2367,7 +2356,7 @@ function ADSimulationView({
             {loadMode === 'optimised' && (
               <>
                 <span style={{ fontSize: 10, fontWeight: 700, color: T2, letterSpacing: '0.05em' }}>SPEED</span>
-                {([1, 2, 3, 5, 10] as const).map(s => (
+                {([1, 2, 3, 5, 10, 50] as const).map(s => (
                   <button key={s} onClick={() => setLoadSpeed(s)} style={{
                     padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700,
                     cursor: 'pointer', border: 'none',
@@ -3043,12 +3032,12 @@ const STATUS_CFG: Record<WHStatus, { label: string; color: string; bg: string; d
 function NetworkKPIBar({ activeScenario }: { activeScenario?: NetworkScenario }) {
   const proj = activeScenario?.projectedKPIBar;
   const kpis = [
-    { label: 'Total Network Throughput', value: proj ? proj.throughput          : '5,667', unit: 'cases/hr', trend: proj ? '' : '+8.4%', up: true },
-    { label: 'Active Warehouses',        value: proj ? '4' : '3',                           unit: 'of 4',    trend: '',                  up: true },
-    { label: 'Network Utilisation',      value: proj ? proj.utilisation         : '78%',    unit: 'avg',     trend: proj ? '' : '-2pp',  up: false },
-    { label: 'Avg Cost per Case',        value: proj ? proj.costPerCase         : '$1.24',  unit: '/case',   trend: proj ? '' : '-$0.06',up: true },
-    { label: 'Order Fill Rate',          value: proj ? proj.fillRate            : '93%',    unit: '',        trend: proj ? '' : '+2pp',  up: true },
-    { label: 'Fleet Active',             value: '42',                                        unit: 'trucks',  trend: '',                  up: true },
+    { label: 'Total Network Throughput', value: proj ? proj.throughput  : '5,667', unit: 'cases/hr' },
+    { label: 'Active Warehouses',        value: proj ? '4' : '3',                   unit: 'of 4'     },
+    { label: 'Network Utilisation',      value: proj ? proj.utilisation : '78%',    unit: 'avg'      },
+    { label: 'Avg Cost per Case',        value: proj ? proj.costPerCase : '$1.24',  unit: '/case'    },
+    { label: 'Order Fill Rate',          value: proj ? proj.fillRate    : '93%',    unit: ''         },
+    { label: 'Fleet Active',             value: '42',                                unit: 'trucks'   },
   ];
   return (
     <div style={{
@@ -3057,7 +3046,7 @@ function NetworkKPIBar({ activeScenario }: { activeScenario?: NetworkScenario })
       borderBottom: `1px solid ${proj ? activeScenario!.tagColor + '33' : BORDER}`,
       transition: 'background 0.3s ease',
     }}>
-      {kpis.map(({ label, value, unit, trend, up }, i) => (
+      {kpis.map(({ label, value, unit }, i) => (
         <div key={i} style={{
           padding: '14px 20px',
           borderRight: i < 5 ? `1px solid ${proj ? activeScenario!.tagColor + '22' : BORDER}` : 'none',
@@ -3070,11 +3059,6 @@ function NetworkKPIBar({ activeScenario }: { activeScenario?: NetworkScenario })
             <span style={{ fontSize: 22, fontWeight: 800, color: proj ? activeScenario!.tagColor : T1, letterSpacing: '-0.02em' }}>{value}</span>
             <span style={{ fontSize: 11, color: T3, fontWeight: 500 }}>{unit}</span>
           </div>
-          {trend && (
-            <div style={{ fontSize: 10, fontWeight: 700, color: up ? GREEN : RED, marginTop: 2 }}>
-              {up ? '▲' : '▼'} {trend}
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -5255,9 +5239,6 @@ export default function App() {
       )}
       {mainTab === 'autonomous-dock' && (
         <AutonomousDockView adSubView={effectiveAdSubView} setAdSubView={setAdSubView} dockPhase={dockPhase} setDockPhase={setDockPhase} loadMode={loadMode} setLoadMode={setLoadMode} />
-      )}
-      {mainTab === 'quadruped' && (
-        <QuadrupedMonitorDashboard />
       )}
     </div>
   );

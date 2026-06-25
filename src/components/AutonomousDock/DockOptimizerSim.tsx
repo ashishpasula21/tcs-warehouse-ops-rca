@@ -64,11 +64,11 @@ function fmtMin(m: number) {
 }
 
 function fillColor(pct: number) {
-  if (pct < 20) return '#374151';
-  if (pct < 45) return '#dc2626';
+  if (pct < 20) return '#16a34a';
+  if (pct < 45) return '#f59e0b';
   if (pct < 65) return '#f97316';
-  if (pct < 80) return '#f59e0b';
-  return '#16a34a';
+  if (pct < 80) return '#dc2626';
+  return '#991b1b';
 }
 
 /* ── AI assignment ──────────────────────────────────────────────── */
@@ -225,10 +225,10 @@ function DockBayTopDown({
           }}>
             {isLoading
               ? `${Math.round(dock.loadPct)}% loaded`
-              : pct < 20  ? 'empty'
+              : pct < 20  ? 'available'
               : pct < 65  ? 'filling'
-              : pct < 80  ? 'staged'
-              : 'ready'}
+              : pct < 80  ? 'high'
+              : 'full'}
           </span>
         </div>
 
@@ -363,11 +363,11 @@ function FillLegend() {
         Fill
       </span>
       {[
-        { range: '0–20%',  color: '#374151', label: 'Empty' },
-        { range: '20–45%', color: '#dc2626', label: 'Low' },
+        { range: '0–20%',  color: '#16a34a', label: 'Available' },
+        { range: '20–45%', color: '#f59e0b', label: 'Filling' },
         { range: '45–65%', color: '#f97316', label: 'Moderate' },
-        { range: '65–80%', color: '#f59e0b', label: 'Good' },
-        { range: '80%+',   color: '#16a34a', label: 'Ready ✓' },
+        { range: '65–80%', color: '#dc2626', label: 'High' },
+        { range: '80%+',   color: '#991b1b', label: 'Full ⚠' },
       ].map(({ range, color, label }) => (
         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
